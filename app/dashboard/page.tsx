@@ -359,6 +359,17 @@ export default function Dashboard() {
   const newsTimerRef = useRef<NodeJS.Timeout | null>(null);
   const priceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  /* ── Real-time price fetch ── */
+  const fetchPrices = useCallback(async (sigs: Signal[]) => {
+    if (sigs.length === 0) return;
+    const unique = Array.from(new Map(sigs.map(s => [s.symbol, s.market])));
+    const symbols = unique.map(([sym]) => sym).join(",");
+    const markets = unique.map(([, mkt]) => mkt).join(",");
+    const res = await fetch(`/api/prices?symbols=${symbols}&markets=${markets}`)
+      .then(r => r.json()).catch(() => ({ prices: {} }));
+    if (res.prices) setPrices(res.prices);
+  }, []);
+
   /* ── Signals & Stats ── */
   const fetchData = useCallback(async () => {
     setRefreshing(true);
@@ -386,17 +397,6 @@ export default function Dashboard() {
     setNews(res.news || []);
     setNewsLoading(false);
   }, [newsMarket, newsKeyword]);
-
-  /* ── Real-time price fetch ── */
-  const fetchPrices = useCallback(async (sigs: Signal[]) => {
-    if (sigs.length === 0) return;
-    const unique = Array.from(new Map(sigs.map(s => [s.symbol, s.market])));
-    const symbols = unique.map(([sym]) => sym).join(",");
-    const markets = unique.map(([, mkt]) => mkt).join(",");
-    const res = await fetch(`/api/prices?symbols=${symbols}&markets=${markets}`)
-      .then(r => r.json()).catch(() => ({ prices: {} }));
-    if (res.prices) setPrices(res.prices);
-  }, []);
 
   useEffect(() => {
     const getCookie = (name: string) =>
