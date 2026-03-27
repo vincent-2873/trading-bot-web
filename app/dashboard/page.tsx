@@ -232,9 +232,9 @@ export default function Dashboard() {
                 <div style={{ fontSize:"0.85rem", color:"#94a3b8", lineHeight:1.7 }}>
                   {String(stats.latest_review.market_assessment || "").substring(0, 120)}
                 </div>
-                {stats.latest_review.risk_warning && (
+                {Boolean(stats.latest_review.risk_warning) && (
                   <div style={{ marginTop:"0.75rem", background:"rgba(255,68,68,0.1)", border:"1px solid rgba(255,68,68,0.3)", borderRadius:"8px", padding:"0.5rem 0.75rem", fontSize:"0.8rem", color:"#ff4444" }}>
-                    ⚠️ {String(stats.latest_review.risk_warning)}
+                    ⚠️ {String(stats.latest_review.risk_warning as string)}
                   </div>
                 )}
               </div>
