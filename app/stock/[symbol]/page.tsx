@@ -37,44 +37,21 @@ type PriceInfo = {
   price: number; change: number; changePercent: number; name: string;
 };
 
-/* ── TradingView Widget ── */
+/* ── TradingView Widget（iframe 穩定版，不中斷）── */
 function TradingViewWidget({ tvSymbol }: { tvSymbol: string }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    containerRef.current.innerHTML = "";
-
-    const script = document.createElement("script");
-    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
-    script.type = "text/javascript";
-    script.async = true;
-    script.innerHTML = JSON.stringify({
-      autosize: true,
-      symbol: tvSymbol,
-      interval: "D",
-      timezone: "Asia/Taipei",
-      theme: "dark",
-      style: "1",
-      locale: "zh_TW",
-      toolbar_bg: "#0c1c10",
-      enable_publishing: false,
-      hide_side_toolbar: false,
-      allow_symbol_change: false,
-      save_image: false,
-      backgroundColor: "rgba(5,16,10,1)",
-      gridColor: "rgba(26,53,37,0.5)",
-      studies: ["RSI@tv-basicstudies", "MACD@tv-basicstudies"],
-      container_id: "tv_chart",
-    });
-    containerRef.current.appendChild(script);
-  }, [tvSymbol]);
+  const src = `https://s.tradingview.com/widgetembed/?frameElementId=tv_chart&symbol=${encodeURIComponent(tvSymbol)}&interval=D&hidesidetoolbar=0&symboledit=1&saveimage=1&toolbarbg=0c1c10&studies=RSI%40tv-basicstudies%2CMACD%40tv-basicstudies&theme=dark&style=1&timezone=Asia%2FTaipei&studies_overrides=%7B%7D&overrides=%7B%7D&enabled_features=%5B%5D&disabled_features=%5B%5D&locale=zh_TW&utm_source=guagua.club&utm_medium=widget`;
 
   return (
-    <div
-      ref={containerRef}
-      style={{ width: "100%", height: 480, background: "var(--bg-card)", borderRadius: 14, overflow: "hidden" }}
-      className="tradingview-widget-container"
+    <iframe
+      src={src}
+      style={{
+        width: "100%", height: 480,
+        border: "none", display: "block",
+        background: "var(--bg-card)",
+      }}
+      allowFullScreen
+      loading="lazy"
+      title={`TradingView Chart - ${tvSymbol}`}
     />
   );
 }
