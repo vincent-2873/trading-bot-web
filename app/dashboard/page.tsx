@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 /* ── Types ── */
 type Signal = {
@@ -40,6 +41,33 @@ const SENT_LABEL: Record<string, string> = {
   POSITIVE: "📈 正面", NEGATIVE: "📉 負面", NEUTRAL: "➡️ 中性",
 };
 
+// Stock name lookup
+const STOCK_NAMES: Record<string, string> = {
+  // 台股
+  "2330": "台積電", "2317": "鴻海", "2454": "聯發科", "2412": "中華電",
+  "2308": "台達電", "2882": "國泰金", "2891": "中信金", "2886": "兆豐金",
+  "2881": "富邦金", "1301": "台塑", "1303": "南亞", "2002": "中鋼",
+  "2303": "聯電", "3711": "日月光投控", "2357": "華碩", "2382": "廣達",
+  "3034": "聯詠", "2379": "瑞昱", "2337": "旺宏", "2344": "華邦電",
+  "4938": "和碩", "3231": "緯創", "2301": "光寶科", "2603": "長榮",
+  "2615": "萬海", "2609": "陽明", "2610": "華航", "2618": "長榮航",
+  "5347": "世界先進", "6770": "力積電", "2884": "玉山金", "2880": "華南金",
+  "2883": "開發金", "1229": "聯華", "1326": "台化",
+  "0050": "元大台灣50", "0056": "元大高股息", "00878": "國泰永續高股息",
+  "00929": "復華台灣科技優息", "00919": "群益台灣精選高息", "006208": "富邦台50",
+  // 美股
+  "NVDA": "NVIDIA", "TSLA": "Tesla", "AAPL": "Apple",
+  "MSFT": "Microsoft", "AMZN": "Amazon", "GOOGL": "Alphabet",
+  "META": "Meta", "AMD": "AMD", "INTC": "Intel",
+  "NFLX": "Netflix", "UBER": "Uber",
+  // 期貨
+  "ES=F": "S&P500期貨", "NQ=F": "那斯達克期貨",
+  "YM=F": "道瓊期貨", "RTY=F": "羅素2000",
+  "GC=F": "黃金期貨", "CL=F": "原油期貨",
+  // 加密
+  "BTC-USD": "比特幣", "ETH-USD": "以太幣",
+};
+
 // Taiwan stock industries
 const TW_INDUSTRIES = [
   { key: "semi",  label: "💻 半導體", syms: ["2330","2454","2379","3711","6770","2303","2337","3034","2344"] },
@@ -62,10 +90,14 @@ function StatCard({ label, value, sub, color }: { label: string; value: string |
   );
 }
 
-function SignalCard({ signal }: { signal: Signal }) {
+function SignalCard({ signal, realtimePrice }: {
+  signal: Signal;
+  realtimePrice?: { price: number; change: number; changePercent: number; name: string };
+}) {
   const [expanded, setExpanded] = useState(false);
+  const router = useRouter();
   const sc = SIG_COLOR[signal.signal_type] || "var(--hold)";
-  // Support both old and new column names
+
   const entryPrice = signal.price || signal.entry_price || 0;
   const stopLoss = signal.stop_loss || 0;
   const takeProfit = signal.target_price || signal.take_profit || 0;
@@ -75,10 +107,18 @@ function SignalCard({ signal }: { signal: Signal }) {
   const sentiment = signal.news_sentiment || (signal.sentiment_score && signal.sentiment_score > 0 ? "POSITIVE" : signal.sentiment_score && signal.sentiment_score < 0 ? "NEGATIVE" : "NEUTRAL");
   const sl_pct = entryPrice > 0 ? ((stopLoss - entryPrice) / entryPrice * 100).toFixed(1) : "0";
   const tp_pct = entryPrice > 0 ? ((takeProfit - entryPrice) / entryPrice * 100).toFixed(1) : "0";
+  const stockName = STOCK_NAMES[signal.symbol] || "";
+
+  // 格式化價格（台股整數，美股兩位小數）
+  const fmtPrice = (p: number) => {
+    if (!p || p <= 0) return "-";
+    return signal.market === "TW"
+      ? p.toLocaleString("zh-TW", { maximumFractionDigits: 2 })
+      : p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
 
   return (
     <div
-      onClick={() => setExpanded(!expanded)}
       className="fade-up"
       style={{
         background: "var(--bg-card)", border: `1px solid ${expanded ? sc + "44" : "var(--border)"}`,
@@ -86,9 +126,22 @@ function SignalCard({ signal }: { signal: Signal }) {
         borderLeft: `3px solid ${sc}`,
       }}
     >
+      {/* Header row */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.8rem", gap: "0.5rem" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", flexWrap: "wrap" }}>
-          <span style={{ fontSize: "clamp(1rem,2.5vw,1.3rem)", fontWeight: 800, color: "var(--t1)" }}>{signal.symbol}</span>
+          {/* Symbol + Name — click goes to detail page */}
+          <button
+            onClick={() => router.push(`/stock/${encodeURIComponent(signal.symbol)}`)}
+            style={{
+              background: "none", border: "none", cursor: "pointer", padding: 0,
+              display: "flex", alignItems: "baseline", gap: "0.35rem",
+            }}
+          >
+            <span style={{ fontSize: "clamp(1rem,2.5vw,1.3rem)", fontWeight: 800, color: "var(--t1)" }}>{signal.symbol}</span>
+            {stockName && (
+              <span style={{ fontSize: "0.78rem", color: "var(--t3)", fontWeight: 500 }}>{stockName}</span>
+            )}
+          </button>
           <span className={`badge badge-${signal.signal_type.toLowerCase()}`}>{signal.signal_type}</span>
           <span style={{
             fontSize: "0.75rem", color: MARKET_COLOR[signal.market] || "var(--t3)",
@@ -96,38 +149,91 @@ function SignalCard({ signal }: { signal: Signal }) {
             padding: "2px 8px", borderRadius: 6,
           }}>{MARKET_LABEL[signal.market] || signal.market}</span>
         </div>
-        <div style={{ textAlign: "right", flexShrink: 0 }}>
-          <div style={{ fontSize: "0.95rem", fontWeight: 700, color: confidence >= 0.6 ? "var(--green)" : confidence >= 0.4 ? "var(--us)" : "var(--hold)" }}>
-            {(confidence * 100).toFixed(0)}%
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
+          {/* Real-time price */}
+          {realtimePrice && realtimePrice.price > 0 && (
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "var(--t1)" }}>
+                {signal.market === "TW"
+                  ? realtimePrice.price.toLocaleString("zh-TW", { maximumFractionDigits: 2 })
+                  : realtimePrice.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                }
+              </div>
+              <div style={{
+                fontSize: "0.65rem", fontWeight: 600,
+                color: realtimePrice.changePercent >= 0 ? "var(--buy)" : "var(--sell)",
+              }}>
+                {realtimePrice.changePercent >= 0 ? "▲" : "▼"}{Math.abs(realtimePrice.changePercent).toFixed(2)}%
+              </div>
+            </div>
+          )}
+          {/* Confidence */}
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: "0.95rem", fontWeight: 700, color: confidence >= 0.6 ? "var(--green)" : confidence >= 0.4 ? "var(--us)" : "var(--hold)" }}>
+              {(confidence * 100).toFixed(0)}%
+            </div>
+            <div style={{ color: "var(--t3)", fontSize: "0.68rem" }}>信心度</div>
           </div>
-          <div style={{ color: "var(--t3)", fontSize: "0.68rem" }}>信心度</div>
+          {/* Expand toggle */}
+          <button
+            onClick={() => setExpanded(!expanded)}
+            style={{
+              background: "var(--bg)", border: "1px solid var(--border)",
+              borderRadius: 6, padding: "0.25rem 0.5rem", cursor: "pointer",
+              color: "var(--t3)", fontSize: "0.75rem", minHeight: 28,
+            }}
+          >
+            {expanded ? "▲" : "▼"}
+          </button>
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "0.5rem", marginBottom: "0.75rem" }}>
+      {/* Price grid: 進場/止損(紅)/止盈(綠) */}
+      <div
+        onClick={() => setExpanded(!expanded)}
+        style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "0.5rem", marginBottom: "0.75rem" }}
+      >
         {[
-          { label: "進場", value: entryPrice > 0 ? entryPrice.toLocaleString() : "-", color: "var(--t1)" },
-          { label: "止損", value: stopLoss > 0 ? stopLoss.toLocaleString() : "-", pct: sl_pct, color: "var(--sell)" },
-          { label: "止盈", value: takeProfit > 0 ? takeProfit.toLocaleString() : "-", pct: `+${tp_pct}`, color: "var(--buy)" },
+          { label: "進場價", value: fmtPrice(entryPrice), color: "var(--t1)", bg: "var(--bg)" },
+          { label: "🛑 止損", value: fmtPrice(stopLoss), pct: sl_pct, color: "#f43f5e", bg: "rgba(244,63,94,0.07)" },
+          { label: "🎯 止盈", value: fmtPrice(takeProfit), pct: `+${tp_pct}`, color: "#22c55e", bg: "rgba(34,197,94,0.07)" },
         ].map(p => (
-          <div key={p.label} style={{ textAlign: "center", background: "var(--bg)", borderRadius: 8, padding: "0.4rem 0.3rem" }}>
-            <div style={{ color: "var(--t3)", fontSize: "0.68rem" }}>{p.label}</div>
+          <div key={p.label} style={{ textAlign: "center", background: p.bg, borderRadius: 8, padding: "0.4rem 0.3rem" }}>
+            <div style={{ color: "var(--t3)", fontSize: "0.66rem" }}>{p.label}</div>
             <div style={{ color: p.color, fontWeight: 700, fontSize: "0.85rem" }}>{p.value}</div>
-            {p.pct && <div style={{ color: p.color, fontSize: "0.68rem", opacity: 0.8 }}>({p.pct}%)</div>}
+            {p.pct && <div style={{ color: p.color, fontSize: "0.67rem", opacity: 0.85 }}>({p.pct}%)</div>}
           </div>
         ))}
       </div>
 
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      {/* Footer row */}
+      <div
+        onClick={() => setExpanded(!expanded)}
+        style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+      >
         <span style={{ fontSize: "0.77rem", color: "var(--t3)" }}>{SENT_LABEL[sentiment] || "➡️ 中性"}</span>
-        <span style={{ fontSize: "0.72rem", color: "var(--t3)" }}>
-          {new Date(signal.created_at).toLocaleString("zh-TW", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+          <span style={{ fontSize: "0.72rem", color: "var(--t3)" }}>
+            {new Date(signal.created_at).toLocaleString("zh-TW", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+          </span>
+          <Link
+            href={`/stock/${encodeURIComponent(signal.symbol)}`}
+            onClick={e => e.stopPropagation()}
+            style={{
+              fontSize: "0.73rem", color: "var(--green)", textDecoration: "none",
+              background: "rgba(34,197,94,0.1)", borderRadius: 5, padding: "2px 8px",
+              border: "1px solid rgba(34,197,94,0.25)",
+            }}
+          >
+            詳細 →
+          </Link>
+        </div>
       </div>
 
+      {/* Expanded AI Analysis */}
       {expanded && (
         <div style={{ marginTop: "0.9rem", borderTop: "1px solid var(--border)", paddingTop: "0.9rem", animation: "fadeUp .2s ease" }}>
-          <div style={{ fontSize: "0.82rem", color: "var(--t2)", fontWeight: 600, marginBottom: "0.4rem" }}>🧠 AI 分析</div>
+          <div style={{ fontSize: "0.82rem", color: "var(--t2)", fontWeight: 600, marginBottom: "0.4rem" }}>🧠 AI 選股理由</div>
           <div style={{ fontSize: "0.83rem", color: "var(--t1)", lineHeight: 1.7, background: "var(--bg)", borderRadius: 8, padding: "0.7rem" }}>
             {analysis || "AI 正在分析中..."}
           </div>
@@ -137,6 +243,19 @@ function SignalCard({ signal }: { signal: Signal }) {
               <div style={{ fontSize: "0.8rem", color: "var(--t3)", lineHeight: 1.6 }}>{techSummary}</div>
             </>
           )}
+          <div style={{ marginTop: "0.8rem", textAlign: "center" }}>
+            <Link
+              href={`/stock/${encodeURIComponent(signal.symbol)}`}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: "0.4rem",
+                color: "var(--green-light)", background: "rgba(34,197,94,0.12)",
+                border: "1px solid rgba(34,197,94,0.3)", borderRadius: 8,
+                padding: "0.45rem 1rem", textDecoration: "none", fontSize: "0.82rem", fontWeight: 600,
+              }}
+            >
+              📈 查看完整線圖與分析
+            </Link>
+          </div>
         </div>
       )}
     </div>
@@ -179,6 +298,8 @@ function NewsCard({ item }: { item: NewsItem }) {
   );
 }
 
+type PriceMap = Record<string, { price: number; change: number; changePercent: number; name: string }>;
+
 /* ── Main Dashboard ── */
 export default function Dashboard() {
   const [tab, setTab]           = useState<"signals" | "news" | "settings">("signals");
@@ -195,7 +316,9 @@ export default function Dashboard() {
   const [user, setUser]         = useState<{ name: string; pic: string } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [prices, setPrices]     = useState<PriceMap>({});
   const newsTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const priceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   /* ── Signals & Stats ── */
   const fetchData = useCallback(async () => {
@@ -205,12 +328,15 @@ export default function Dashboard() {
       fetch("/api/stats").then(r => r.json()).catch(() => ({})),
       fetch("/api/subscribe").then(r => r.json()).catch(() => ({ subscribed: false, markets: [] })),
     ]);
-    setSignals(sigRes.signals || []);
+    const sigs: Signal[] = sigRes.signals || [];
+    setSignals(sigs);
     setStats(statRes);
     setSub(subRes);
     setLoading(false);
     setRefreshing(false);
-  }, [market]);
+    // Fetch real-time prices for displayed signals
+    fetchPrices(sigs);
+  }, [market, fetchPrices]);
 
   /* ── News fetch ── */
   const fetchNews = useCallback(async (mkt = newsMarket, q = newsKeyword) => {
@@ -221,6 +347,17 @@ export default function Dashboard() {
     setNews(res.news || []);
     setNewsLoading(false);
   }, [newsMarket, newsKeyword]);
+
+  /* ── Real-time price fetch ── */
+  const fetchPrices = useCallback(async (sigs: Signal[]) => {
+    if (sigs.length === 0) return;
+    const unique = Array.from(new Map(sigs.map(s => [s.symbol, s.market])));
+    const symbols = unique.map(([sym]) => sym).join(",");
+    const markets = unique.map(([, mkt]) => mkt).join(",");
+    const res = await fetch(`/api/prices?symbols=${symbols}&markets=${markets}`)
+      .then(r => r.json()).catch(() => ({ prices: {} }));
+    if (res.prices) setPrices(res.prices);
+  }, []);
 
   useEffect(() => {
     const getCookie = (name: string) =>
@@ -234,6 +371,14 @@ export default function Dashboard() {
   useEffect(() => {
     if (tab === "news") fetchNews(newsMarket, newsKeyword);
   }, [tab, newsMarket]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-refresh prices every 30 seconds during market hours
+  useEffect(() => {
+    if (signals.length === 0) return;
+    const refresh = () => fetchPrices(signals);
+    priceTimerRef.current = setInterval(refresh, 30000);
+    return () => { if (priceTimerRef.current) clearInterval(priceTimerRef.current); };
+  }, [signals, fetchPrices]);
 
   // Debounce news keyword search
   useEffect(() => {
@@ -424,7 +569,7 @@ export default function Dashboard() {
               <div style={{ color: "var(--t3)", fontSize: "0.78rem", marginBottom: "0.25rem" }}>
                 共 {filteredSignals.length} 筆訊號{industry ? ` · ${TW_INDUSTRIES.find(i => i.key === industry)?.label}` : ""}
               </div>
-              {filteredSignals.map(s => <SignalCard key={s.id} signal={s} />)}
+              {filteredSignals.map(s => <SignalCard key={s.id} signal={s} realtimePrice={prices[s.symbol]} />)}
             </div>
           )}
         </div>

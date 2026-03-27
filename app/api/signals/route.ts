@@ -6,10 +6,13 @@ export async function GET(req: NextRequest) {
   const market = searchParams.get("market");
   const limit  = parseInt(searchParams.get("limit") || "20");
 
+  const symbol = searchParams.get("symbol");
+
   try {
     const db = supabaseAdmin();
     let query = db.from("signals").select("*").order("created_at", { ascending: false }).limit(limit);
     if (market && market !== "ALL") query = query.eq("market", market);
+    if (symbol) query = query.eq("symbol", symbol);
 
     const { data, error } = await query;
     if (error) throw error;
