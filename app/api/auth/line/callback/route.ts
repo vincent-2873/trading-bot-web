@@ -6,12 +6,13 @@ export async function GET(req: NextRequest) {
   const code  = searchParams.get("code");
   const error = searchParams.get("error");
 
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
   if (error || !code) {
-    return NextResponse.redirect(new URL("/?error=line_auth_failed", req.url));
+    return NextResponse.redirect(new URL("/?error=line_auth_failed", appUrl));
   }
 
   try {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
     // 1. 換取 access token
     const tokenRes = await fetch("https://api.line.me/oauth2/v2.1/token", {
@@ -48,7 +49,7 @@ export async function GET(req: NextRequest) {
     }, { onConflict: "line_user_id" });
 
     // 4. 建立 session cookie 並跳轉 dashboard
-    const res = NextResponse.redirect(new URL("/dashboard", req.url));
+    const res = NextResponse.redirect(new URL("/dashboard", appUrl));
     res.cookies.set("line_user_id",   userId,      { httpOnly: true, path: "/", maxAge: 60 * 60 * 24 * 30 });
     res.cookies.set("display_name",   displayName, { path: "/", maxAge: 60 * 60 * 24 * 30 });
     res.cookies.set("picture_url",    pictureUrl || "", { path: "/", maxAge: 60 * 60 * 24 * 30 });
@@ -56,6 +57,6 @@ export async function GET(req: NextRequest) {
 
   } catch (e) {
     console.error("[LINE AUTH]", e);
-    return NextResponse.redirect(new URL("/?error=auth_error", req.url));
+    return NextResponse.redirect(new URL("/?error=auth_error", appUrl));
   }
 }
