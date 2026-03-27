@@ -79,6 +79,37 @@ const TW_INDUSTRIES = [
   { key: "etf",   label: "📊 ETF",    syms: ["0050","0056","00878","00929","00919","006208"] },
 ];
 
+/* ── TradingView Mini Chart (inline) ── */
+function InlineTVChart({ tvSymbol }: { tvSymbol: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    ref.current.innerHTML = "";
+    const script = document.createElement("script");
+    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js";
+    script.type = "text/javascript";
+    script.async = true;
+    script.innerHTML = JSON.stringify({
+      symbol: tvSymbol,
+      width: "100%",
+      height: 220,
+      locale: "zh_TW",
+      dateRange: "3M",
+      colorTheme: "dark",
+      trendLineColor: "rgba(34,197,94,1)",
+      underLineColor: "rgba(34,197,94,0.1)",
+      underLineBottomColor: "rgba(34,197,94,0)",
+      isTransparent: true,
+      autosize: true,
+      largeChartUrl: `https://trading-bot-web.zeabur.app/stock/${encodeURIComponent(tvSymbol)}`,
+    });
+    ref.current.appendChild(script);
+  }, [tvSymbol]);
+
+  return <div ref={ref} style={{ width: "100%", height: 220 }} className="tradingview-widget-container" />;
+}
+
 /* ── Sub-components ── */
 function StatCard({ label, value, sub, color }: { label: string; value: string | number; sub?: string; color?: string }) {
   return (
@@ -300,6 +331,14 @@ function NewsCard({ item }: { item: NewsItem }) {
 
 type PriceMap = Record<string, { price: number; change: number; changePercent: number; name: string }>;
 
+// 四象限大盤指數設定
+const MARKET_INDICES = [
+  { symbol: "^TWII",   tvSymbol: "TWSE:TAIEX",         name: "台灣加權指數", market: "TW",      emoji: "🇹🇼", color: "var(--tw)" },
+  { symbol: "^GSPC",   tvSymbol: "SP:SPX",              name: "S&P 500",     market: "US",      emoji: "🇺🇸", color: "var(--us)" },
+  { symbol: "NQ=F",    tvSymbol: "CME_MINI:NQ1!",       name: "那斯達克期貨", market: "FUTURES", emoji: "📊", color: "var(--futures)" },
+  { symbol: "BTC-USD", tvSymbol: "BINANCE:BTCUSDT",     name: "比特幣",       market: "CRYPTO",  emoji: "🪙", color: "var(--crypto)" },
+];
+
 /* ── Main Dashboard ── */
 export default function Dashboard() {
   const [tab, setTab]           = useState<"signals" | "news" | "settings">("signals");
@@ -478,6 +517,101 @@ export default function Dashboard() {
       ))}
     </div>
   );
+
+  /* ── Market Overview (4-quadrant) ── */
+  const MarketOverview = () => {
+    const [indexPrices, setIndexPrices] = useState<PriceMap>({});
+    const [activeChart, setActiveChart] = useState<string | null>(null);
+
+    useEffect(() => {
+      // Fetch index prices
+      const syms = MARKET_INDICES.map(i => i.symbol).join(",");
+      const mkts = MARKET_INDICES.map(i => i.market).join(",");
+      fetch(`/api/prices?symbols=${syms}&markets=${mkts}`)
+        .then(r => r.json())
+        .then(d => { if (d.prices) setIndexPrices(d.prices); })
+        .catch(() => {});
+    }, []);
+
+    return (
+      <div style={{ marginBottom: "1.5rem" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
+          <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--t2)" }}>📡 即時大盤指數</span>
+          <span style={{ fontSize: "0.68rem", color: "var(--t3)" }}>每30秒自動更新</span>
+        </div>
+        {/* 4-Quadrant grid */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "0.6rem" }}>
+          {MARKET_INDICES.map(idx => {
+            const p = indexPrices[idx.symbol];
+            const isUp = p && p.changePercent >= 0;
+            const isActive = activeChart === idx.tvSymbol;
+
+            return (
+              <div key={idx.symbol}>
+                <div
+                  onClick={() => setActiveChart(isActive ? null : idx.tvSymbol)}
+                  style={{
+                    background: "var(--bg-card)",
+                    border: `1px solid ${isActive ? idx.color : "var(--border)"}`,
+                    borderRadius: 12, padding: "0.75rem 1rem", cursor: "pointer",
+                    transition: "all .2s",
+                    borderLeft: `3px solid ${idx.color}`,
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <div>
+                      <div style={{ fontSize: "0.7rem", color: idx.color, fontWeight: 600 }}>
+                        {idx.emoji} {idx.name}
+                      </div>
+                      <div style={{ fontSize: "clamp(1rem,2.5vw,1.2rem)", fontWeight: 800, color: "var(--t1)", marginTop: "0.2rem" }}>
+                        {p && p.price > 0
+                          ? idx.market === "TW"
+                            ? p.price.toLocaleString("zh-TW", { maximumFractionDigits: 0 })
+                            : p.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                          : "—"
+                        }
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      {p && p.price > 0 && (
+                        <>
+                          <div style={{
+                            fontSize: "0.85rem", fontWeight: 700,
+                            color: isUp ? "var(--buy)" : "var(--sell)",
+                          }}>
+                            {isUp ? "▲" : "▼"} {Math.abs(p.changePercent).toFixed(2)}%
+                          </div>
+                          <div style={{ fontSize: "0.68rem", color: "var(--t3)" }}>
+                            {isUp ? "+" : ""}{p.change.toFixed(2)}
+                          </div>
+                        </>
+                      )}
+                      <div style={{ fontSize: "0.65rem", color: "var(--t3)", marginTop: "0.2rem" }}>
+                        {isActive ? "▲ 收起" : "📈 K線"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Inline TradingView mini chart */}
+                {isActive && (
+                  <div style={{
+                    marginTop: "0.4rem",
+                    background: "var(--bg-card)",
+                    border: `1px solid ${idx.color}44`,
+                    borderRadius: 12, overflow: "hidden",
+                    animation: "fadeUp .2s ease",
+                  }}>
+                    <InlineTVChart tvSymbol={idx.tvSymbol} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
 
   /* ── Stats grid ── */
   const StatsGrid = () => (
@@ -760,6 +894,7 @@ export default function Dashboard() {
       <TabBar />
 
       <div style={{ maxWidth: 1200, margin: "0 auto", padding: "1.25rem 1rem" }}>
+        {tab === "signals" && <MarketOverview />}
         <StatsGrid />
         {tab === "signals"  && <SignalsTab />}
         {tab === "news"     && <NewsTab />}

@@ -20,6 +20,7 @@ const TW_NAMES: Record<string, string> = {
   "2883": "開發金", "1229": "聯華", "1326": "台化",
   "0050": "元大台灣50", "0056": "元大高股息", "00878": "國泰永續高股息",
   "00929": "復華台灣科技優息", "00919": "群益台灣精選高息", "006208": "富邦台50",
+  "^TWII": "台灣加權指數",
 };
 
 const US_NAMES: Record<string, string> = {
@@ -31,6 +32,7 @@ const US_NAMES: Record<string, string> = {
   "YM=F": "道瓊期貨", "RTY=F": "羅素2000期貨",
   "GC=F": "黃金期貨", "CL=F": "原油期貨",
   "BTC-USD": "比特幣", "ETH-USD": "以太幣",
+  "^GSPC": "S&P 500", "^IXIC": "那斯達克", "^DJI": "道瓊工業",
 };
 
 export const revalidate = 0; // No caching
@@ -128,12 +130,15 @@ export async function GET(req: NextRequest) {
       const market = marketList[i] || "US";
       let info = null;
 
-      if (market === "TW") {
-        // Try TWSE first, fallback to Yahoo Finance
+      if (market === "TW" && !symbol.startsWith("^")) {
+        // Try TWSE first for regular TW stocks, fallback to Yahoo Finance
         info = await fetchTwsePrice(symbol);
         if (!info || info.price <= 0) {
           info = await fetchYahooPrice(symbol, true);
         }
+      } else if (market === "TW" && symbol.startsWith("^")) {
+        // TAIEX index via Yahoo Finance
+        info = await fetchYahooPrice(symbol, false);
       } else {
         info = await fetchYahooPrice(symbol, false);
       }
