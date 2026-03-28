@@ -181,12 +181,14 @@ export default function Home() {
           <p style={{ textAlign: "center", color: "var(--t3)", marginBottom: "2rem", fontSize: "0.9rem" }}>
             一個平台，掌握四大市場的 AI 投資訊號
           </p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(230px,1fr))", gap: "1rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(min(100%,200px),1fr))", gap: "0.85rem" }}>
             {FEATURES.map(f => (
-              <div key={f.title} className="card" style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
-                <div style={{ fontSize: "1.8rem" }}>{f.icon}</div>
-                <div style={{ fontWeight: 700, color: "var(--t1)", fontSize: "1rem" }}>{f.title}</div>
-                <div style={{ color: "var(--t3)", fontSize: "0.86rem", lineHeight: 1.6 }}>{f.desc}</div>
+              <div key={f.title} className="card" style={{ display: "flex", flexDirection: "row", alignItems: "flex-start", gap: "0.75rem", padding: "0.9rem 1rem" }}>
+                <div style={{ fontSize: "1.6rem", flexShrink: 0, lineHeight: 1 }}>{f.icon}</div>
+                <div>
+                  <div style={{ fontWeight: 700, color: "var(--t1)", fontSize: "0.92rem", marginBottom: "0.2rem" }}>{f.title}</div>
+                  <div style={{ color: "var(--t3)", fontSize: "0.82rem", lineHeight: 1.55 }}>{f.desc}</div>
+                </div>
               </div>
             ))}
           </div>

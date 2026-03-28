@@ -3,14 +3,21 @@ import { useEffect, useRef, useState } from "react";
 
 type Candle = { time: number; open: number; high: number; low: number; close: number; volume: number };
 
+interface SignalMarker {
+  time: string; // ISO date string
+  signal_type: string; // "BUY" | "SELL"
+  price: number;
+}
+
 interface Props {
   symbol: string;
   market: string;
   height?: number;
   mini?: boolean;  // mini mode for dashboard overview
+  signals?: SignalMarker[];  // buy/sell markers on chart
 }
 
-export default function LightweightChart({ symbol, market, height = 480, mini = false }: Props) {
+export default function LightweightChart({ symbol, market, height = 480, mini = false, signals = [] }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -92,6 +99,29 @@ export default function LightweightChart({ symbol, market, height = 480, mini = 
           });
           candleSeries.setData(data.candles);
 
+          // Buy/Sell signal markers
+          if (signals && signals.length > 0) {
+            const markers = signals
+              .filter(s => s.signal_type === "BUY" || s.signal_type === "SELL")
+              .map(s => {
+                const d = new Date(s.time);
+                const unixDay = Math.floor(d.getTime() / 1000 / 86400) * 86400;
+                return {
+                  time: unixDay,
+                  position: s.signal_type === "BUY" ? "belowBar" : "aboveBar",
+                  color: s.signal_type === "BUY" ? "#22c55e" : "#f43f5e",
+                  shape: s.signal_type === "BUY" ? "arrowUp" : "arrowDown",
+                  text: s.signal_type === "BUY" ? "▲買" : "▼賣",
+                  size: 1.5,
+                };
+              })
+              .sort((a, b) => (a.time as number) - (b.time as number));
+            if (markers.length > 0) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (candleSeries as any).setMarkers(markers);
+            }
+          }
+
           // MA5 line (orange)
           if (data.ma5?.length > 0) {
             const ma5Series = chart.addSeries(LineSeries, {
@@ -169,7 +199,7 @@ export default function LightweightChart({ symbol, market, height = 480, mini = 
       cleanup = true;
       if (chart) chart.remove();
     };
-  }, [symbol, market, height, mini]);
+  }, [symbol, market, height, mini, signals]);
 
   return (
     <div style={{ position: "relative", width: "100%", height }}>

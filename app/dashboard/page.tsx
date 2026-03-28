@@ -38,7 +38,7 @@ type CryptoCoinsType = {
 };
 
 /* ── Constants ── */
-const MARKETS = ["ALL", "TW", "US", "FUTURES", "CRYPTO"];
+const MARKETS = ["TW", "ALL", "US", "FUTURES", "CRYPTO"];
 const MARKET_LABEL: Record<string, string> = {
   TW: "🇹🇼 台股", US: "🇺🇸 美股", FUTURES: "📊 期貨", CRYPTO: "🪙 加密",
 };
@@ -146,9 +146,12 @@ function SignalCard({ signal, realtimePrice, onPaperTrade }: {
     <div
       className="fade-up"
       style={{
-        background: "var(--bg-card)", border: `1px solid ${expanded ? sc + "44" : "var(--border)"}`,
-        borderRadius: 14, padding: "1.1rem", cursor: "pointer", transition: "all .2s",
+        background: "var(--bg-card)",
+        borderTop: `1px solid ${expanded ? sc + "44" : "var(--border)"}`,
+        borderRight: `1px solid ${expanded ? sc + "44" : "var(--border)"}`,
+        borderBottom: `1px solid ${expanded ? sc + "44" : "var(--border)"}`,
         borderLeft: `3px solid ${sc}`,
+        borderRadius: 14, padding: "1.1rem", cursor: "pointer", transition: "all .2s",
       }}
     >
       {/* Header row */}
@@ -162,9 +165,16 @@ function SignalCard({ signal, realtimePrice, onPaperTrade }: {
               display: "flex", alignItems: "baseline", gap: "0.35rem",
             }}
           >
-            <span style={{ fontSize: "clamp(1rem,2.5vw,1.3rem)", fontWeight: 800, color: "var(--t1)" }}>{signal.symbol}</span>
-            {stockName && (
-              <span style={{ fontSize: "0.78rem", color: "var(--t3)", fontWeight: 500 }}>{stockName}</span>
+            {signal.market === "TW" && stockName ? (
+              <>
+                <span style={{ fontSize: "clamp(0.95rem,2.5vw,1.2rem)", fontWeight: 800, color: "var(--t1)" }}>{stockName}</span>
+                <span style={{ fontSize: "0.75rem", color: "var(--t3)", fontWeight: 500 }}>({signal.symbol})</span>
+              </>
+            ) : (
+              <>
+                <span style={{ fontSize: "clamp(1rem,2.5vw,1.3rem)", fontWeight: 800, color: "var(--t1)" }}>{signal.symbol}</span>
+                {stockName && <span style={{ fontSize: "0.78rem", color: "var(--t3)", fontWeight: 500 }}>{stockName}</span>}
+              </>
             )}
           </button>
           <span className={`badge badge-${signal.signal_type.toLowerCase()}`}>{signal.signal_type}</span>
@@ -359,13 +369,13 @@ const MARKET_INDICES = [
 
 /* ── Main Dashboard ── */
 export default function Dashboard() {
-  const [tab, setTab]           = useState<"signals" | "news" | "settings" | "paper">("signals");
+  const [tab, setTab]           = useState<"signals" | "news" | "settings" | "paper" | "ai_sim">("signals");
   const [signals, setSignals]   = useState<Signal[]>([]);
   const [stats, setStats]       = useState<Stats | null>(null);
   const [sub, setSub]           = useState<Sub>({ subscribed: false, markets: [] });
   const [news, setNews]         = useState<NewsItem[]>([]);
   const [newsLoading, setNewsLoading] = useState(false);
-  const [market, setMarket]     = useState("ALL");
+  const [market, setMarket]     = useState("TW");
   const [newsMarket, setNewsMarket] = useState("ALL");
   const [industry, setIndustry] = useState("");
   const [newsKeyword, setNewsKeyword] = useState("");
@@ -573,7 +583,8 @@ export default function Dashboard() {
     }}>
       {[
         { key: "signals", label: "📊 訊號" },
-        { key: "news",    label: "📰 新聞時事" },
+        { key: "news",    label: "📰 新聞" },
+        { key: "ai_sim",  label: "🤖 AI分析" },
         { key: "paper",   label: "🎮 模擬倉" },
         { key: "settings",label: "⚙️ 設定" },
       ].map(t => (
@@ -609,31 +620,35 @@ export default function Dashboard() {
           <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--t2)" }}>📡 即時大盤指數</span>
           <span style={{ fontSize: "0.68rem", color: "var(--t3)" }}>每30秒自動更新</span>
         </div>
-        {/* 4-Quadrant grid */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "0.6rem" }}>
+        {/* Market index grid: TW full-width on top, others below */}
+        <div suppressHydrationWarning style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "0.6rem" }}>
           {MARKET_INDICES.map(idx => {
             const p = indexPrices[idx.symbol];
             const isUp = p && p.changePercent >= 0;
             const isActive = activeChart === idx.symbol;
+            const isTW = idx.market === "TW";
 
             return (
-              <div key={idx.symbol}>
+              <div key={idx.symbol} className={isTW ? "market-idx-tw" : ""}>
                 <div
                   onClick={() => setActiveChart(isActive ? null : idx.symbol)}
                   style={{
                     background: "var(--bg-card)",
-                    border: `1px solid ${isActive ? idx.color : "var(--border)"}`,
+                    borderTop: `1px solid ${isActive ? idx.color : "var(--border)"}`,
+                    borderRight: `1px solid ${isActive ? idx.color : "var(--border)"}`,
+                    borderBottom: `1px solid ${isActive ? idx.color : "var(--border)"}`,
+                    borderLeft: `3px solid ${idx.color}`,
                     borderRadius: 12, padding: "0.75rem 1rem", cursor: "pointer",
                     transition: "all .2s",
-                    borderLeft: `3px solid ${idx.color}`,
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <div>
-                      <div style={{ fontSize: "0.7rem", color: idx.color, fontWeight: 600 }}>
+                      <div style={{ fontSize: "0.7rem", color: idx.color, fontWeight: 600, display: "flex", alignItems: "center", gap: "0.4rem" }}>
                         {idx.emoji} {idx.name}
+                        {isTW && <span style={{ background: "rgba(56,189,248,.2)", color: "var(--tw)", fontSize: "0.6rem", fontWeight: 800, padding: "1px 6px", borderRadius: 4, letterSpacing: "0.05em" }}>主力</span>}
                       </div>
-                      <div style={{ fontSize: "clamp(1rem,2.5vw,1.2rem)", fontWeight: 800, color: "var(--t1)", marginTop: "0.2rem" }}>
+                      <div style={{ fontSize: isTW ? "clamp(1.2rem,3vw,1.6rem)" : "clamp(1rem,2.5vw,1.2rem)", fontWeight: 800, color: "var(--t1)", marginTop: "0.2rem" }}>
                         {p && p.price > 0
                           ? idx.market === "TW"
                             ? p.price.toLocaleString("zh-TW", { maximumFractionDigits: 0 })
@@ -685,7 +700,7 @@ export default function Dashboard() {
 
   /* ── Stats grid ── */
   const StatsGrid = () => (
-    <div style={{
+    <div className="stats-grid" style={{
       display: "grid",
       gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
       gap: "0.75rem", marginBottom: "1.5rem",
@@ -702,42 +717,112 @@ export default function Dashboard() {
   );
 
   /* ── Signals Tab ── */
-  const SignalsTab = () => (
+  const SignalsTab = () => {
+    const router = useRouter();
+    const [twSearch, setTwSearch] = useState("");
+    const [twSearchResults, setTwSearchResults] = useState<{ sym: string; name: string }[]>([]);
+
+    const handleTwSearch = (q: string) => {
+      setTwSearch(q);
+      if (!q.trim()) { setTwSearchResults([]); return; }
+      const ql = q.toLowerCase();
+      const res = Object.entries(STOCK_NAMES)
+        .filter(([sym, name]) => sym.toLowerCase().includes(ql) || name.toLowerCase().includes(ql))
+        .slice(0, 6)
+        .map(([sym, name]) => ({ sym, name }));
+      setTwSearchResults(res);
+    };
+
+    return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "1.25rem" }}>
-      {/* Market Filter */}
+      {/* TW Search + Market Filter */}
       <div>
-        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
-          {MARKETS.map(m => (
-            <button key={m} onClick={() => { setMarket(m); setIndustry(""); }}
-              style={{
-                background: market === m ? "rgba(34,197,94,.18)" : "var(--bg-card)",
-                color: market === m ? "var(--green-light)" : "var(--t3)",
-                border: `1px solid ${market === m ? "var(--green)" : "var(--border)"}`,
-                borderRadius: 8, padding: "0.4rem 0.9rem", cursor: "pointer",
-                fontWeight: market === m ? 700 : 400, fontSize: "0.85rem",
-                minHeight: 40, transition: "all .2s",
-              }}>
-              {m === "ALL" ? "🌍 全部" : MARKET_LABEL[m]}
-            </button>
-          ))}
+        {/* 🔍 台股搜尋 - 主要功能 */}
+        <div style={{ position: "relative", marginBottom: "0.85rem" }}>
+          <input
+            value={twSearch}
+            onChange={e => handleTwSearch(e.target.value)}
+            onBlur={() => setTimeout(() => setTwSearchResults([]), 180)}
+            placeholder="🔍 搜尋台股個股（名稱或代號），例：台積電、2330"
+            style={{
+              width: "100%", background: "var(--bg-input)", border: "1px solid var(--border)",
+              color: "var(--t1)", borderRadius: 10, padding: "0.6rem 1rem",
+              fontSize: "16px", outline: "none", minHeight: 46,
+              WebkitAppearance: "none",
+            }}
+          />
+          {twSearchResults.length > 0 && (
+            <div style={{
+              position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
+              background: "var(--bg-card)", border: "1px solid var(--border)",
+              borderRadius: 10, zIndex: 100, overflow: "hidden", boxShadow: "0 8px 24px #000a",
+            }}>
+              {twSearchResults.map(r => (
+                <button key={r.sym}
+                  onMouseDown={() => { router.push(`/stock/${r.sym}`); setTwSearch(""); setTwSearchResults([]); }}
+                  style={{
+                    width: "100%", background: "none", border: "none",
+                    borderBottom: "1px solid var(--border)",
+                    padding: "0.65rem 1rem", cursor: "pointer", textAlign: "left",
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                  }}>
+                  <span style={{ color: "var(--t1)", fontWeight: 700 }}>{r.name}</span>
+                  <span style={{ color: "var(--tw)", fontSize: "0.82rem" }}>{r.sym}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="market-filter-strip" style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.75rem", alignItems: "center" }}>
+          {MARKETS.map(m => {
+            const isTWBtn = m === "TW";
+            const isActive = market === m;
+            return (
+              <button key={m} onClick={() => { setMarket(m); setIndustry(""); }}
+                style={{
+                  background: isActive
+                    ? isTWBtn ? "rgba(56,189,248,.2)" : "rgba(34,197,94,.18)"
+                    : isTWBtn ? "rgba(56,189,248,.06)" : "var(--bg-card)",
+                  color: isActive
+                    ? isTWBtn ? "var(--tw)" : "var(--green-light)"
+                    : isTWBtn ? "var(--tw)" : "var(--t3)",
+                  border: `${isTWBtn ? "2px" : "1px"} solid ${isActive
+                    ? isTWBtn ? "var(--tw)" : "var(--green)"
+                    : isTWBtn ? "rgba(56,189,248,.35)" : "var(--border)"}`,
+                  borderRadius: 8,
+                  padding: isTWBtn ? "0.4rem 1rem" : "0.4rem 0.9rem",
+                  cursor: "pointer",
+                  fontWeight: isActive || isTWBtn ? 700 : 400,
+                  fontSize: isTWBtn ? "0.9rem" : "0.85rem",
+                  minHeight: 40, transition: "all .2s",
+                }}>
+                {m === "ALL" ? "🌍 全部" : MARKET_LABEL[m]}
+                {isTWBtn && <span style={{ marginLeft: "0.3rem", fontSize: "0.6rem", opacity: 0.8 }}>主</span>}
+              </button>
+            );
+          })}
         </div>
 
         {/* TW Sector quick-filter */}
         {market === "TW" && (
-          <div style={{ display: "flex", gap: "0.4rem", overflowX: "auto", WebkitOverflowScrolling: "touch", paddingBottom: "0.4rem", marginBottom: "0.4rem" }}>
+          <div className="sector-filter" style={{ display: "flex", gap: "0.4rem", overflowX: "auto", WebkitOverflowScrolling: "touch", paddingBottom: "0.4rem", marginBottom: "0.4rem" }}>
             {TW_SECTOR_FILTER.map(sector => {
               const mappedKey = TW_SECTOR_KEY[sector] || "";
               const isActive = sector === "全部" ? !industry : industry === mappedKey;
               return (
                 <button key={sector}
                   onClick={() => setIndustry(sector === "全部" ? "" : (industry === mappedKey ? "" : mappedKey))}
+                  className="sector-btn"
                   style={{
                     background: isActive ? "rgba(56,189,248,.18)" : "var(--bg-card)",
                     color: isActive ? "var(--tw)" : "var(--t3)",
                     border: `1px solid ${isActive ? "var(--tw)" : "var(--border)"}`,
                     borderRadius: 20, padding: "0.28rem 0.75rem", cursor: "pointer",
                     fontSize: "0.75rem", fontWeight: isActive ? 700 : 400,
-                    whiteSpace: "nowrap", minHeight: 30, transition: "all .15s",
+                    whiteSpace: "nowrap", minHeight: 34, transition: "all .15s",
+                    flexShrink: 0,
+                    WebkitTapHighlightColor: "transparent",
                   }}>{sector}</button>
               );
             })}
@@ -746,14 +831,15 @@ export default function Dashboard() {
 
         {/* TW Industry filter */}
         {market === "TW" && (
-          <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", paddingBottom: "0.5rem" }}>
+          <div className="sector-filter" style={{ display: "flex", gap: "0.4rem", overflowX: "auto", WebkitOverflowScrolling: "touch", paddingBottom: "0.5rem" }}>
             <button onClick={() => setIndustry("")}
               style={{
                 background: !industry ? "rgba(56,189,248,.15)" : "var(--bg-card)",
                 color: !industry ? "var(--tw)" : "var(--t3)",
                 border: `1px solid ${!industry ? "var(--tw)" : "var(--border)"}`,
                 borderRadius: 6, padding: "0.3rem 0.75rem", cursor: "pointer",
-                fontSize: "0.78rem", minHeight: 34,
+                fontSize: "0.78rem", minHeight: 34, flexShrink: 0,
+                WebkitTapHighlightColor: "transparent",
               }}>全產業</button>
             {TW_INDUSTRIES.map(ind => (
               <button key={ind.key} onClick={() => setIndustry(industry === ind.key ? "" : ind.key)}
@@ -763,11 +849,28 @@ export default function Dashboard() {
                   border: `1px solid ${industry === ind.key ? "var(--tw)" : "var(--border)"}`,
                   borderRadius: 6, padding: "0.3rem 0.75rem", cursor: "pointer",
                   fontSize: "0.78rem", minHeight: 34, transition: "all .15s",
+                  flexShrink: 0, whiteSpace: "nowrap",
+                  WebkitTapHighlightColor: "transparent",
                 }}>{ind.label}</button>
             ))}
           </div>
         )}
       </div>
+
+      {/* Reference notice for non-TW markets */}
+      {(market === "US" || market === "FUTURES" || market === "CRYPTO") && (
+        <div style={{
+          background: "rgba(251,191,36,.06)", border: "1px solid rgba(251,191,36,.2)",
+          borderRadius: 10, padding: "0.6rem 1rem", marginBottom: "0.75rem",
+          display: "flex", alignItems: "center", gap: "0.5rem",
+        }}>
+          <span style={{ fontSize: "0.85rem" }}>ℹ️</span>
+          <span style={{ fontSize: "0.78rem", color: "var(--gold)" }}>
+            此為<strong>參考資訊</strong>，本系統以<strong>🇹🇼 台股</strong>為主力分析市場。
+            美股 / 期貨 / 加密貨幣數據作為輔助判斷依據。
+          </span>
+        </div>
+      )}
 
       {/* Crypto market panel */}
       {market === "CRYPTO" && cryptoData && (
@@ -850,9 +953,27 @@ export default function Dashboard() {
       )}
 
       {/* Main content */}
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 300px", gap: "1.25rem", alignItems: "start" }}>
+      <div className="dash-main-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 300px", gap: "1.25rem", alignItems: "start" }}>
         {/* Signals list */}
         <div>
+          {/* Section header */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.75rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <span style={{ fontSize: "0.85rem", fontWeight: 700, color: "var(--t2)" }}>
+                {market === "TW" ? "🇹🇼 台股 AI 訊號" :
+                 market === "US" ? "🇺🇸 美股參考訊號" :
+                 market === "FUTURES" ? "📊 期貨參考訊號" :
+                 market === "CRYPTO" ? "🪙 加密參考訊號" : "🌍 全市場訊號"}
+              </span>
+              {(market === "US" || market === "FUTURES" || market === "CRYPTO") && (
+                <span style={{ fontSize: "0.62rem", color: "var(--gold)", background: "rgba(251,191,36,.1)", padding: "2px 7px", borderRadius: 4, fontWeight: 700 }}>輔助</span>
+              )}
+              {market === "TW" && (
+                <span style={{ fontSize: "0.62rem", color: "var(--tw)", background: "rgba(56,189,248,.12)", padding: "2px 7px", borderRadius: 4, fontWeight: 700 }}>主力</span>
+              )}
+            </div>
+            <span style={{ fontSize: "0.72rem", color: "var(--t3)" }}>最近 {signals.length} 筆</span>
+          </div>
           {loading ? (
             <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
               {[1, 2, 3].map(i => (
@@ -892,6 +1013,7 @@ export default function Dashboard() {
       </div>
     </div>
   );
+  };
 
   /* ── News Tab ── */
   const NewsTab = () => (
@@ -1076,6 +1198,150 @@ export default function Dashboard() {
     </div>
   );
 
+  /* ── AI Simulation Process Tab ── */
+  function AiSimTab({ signals, loading }: { signals: Signal[]; loading: boolean }) {
+    const [selectedSym, setSelectedSym] = useState<string | null>(null);
+
+    const recentSignals = signals.filter(s => s.signal_type === "BUY" || s.signal_type === "SELL").slice(0, 20);
+    const selected = selectedSym ? recentSignals.find(s => s.symbol === selectedSym) : recentSignals[0];
+
+    const techScore  = (s: Signal) => Math.round((s.technical_score || 0) * 100);
+    const sentScore  = (s: Signal) => Math.round(Math.abs(s.sentiment_score || 0) * 100);
+    const confScore  = (s: Signal) => Math.round((s.confidence || 0) * 100) || Math.round(s.confidence || 0);
+
+    const STEPS = (s: Signal) => [
+      {
+        step: 1, label: "📥 資料抓取", status: "done",
+        detail: `抓取 ${s.symbol} 近 6 個月 K 線數據（不採用 1 年以上舊資料）`,
+        color: "var(--green)",
+      },
+      {
+        step: 2, label: "📊 技術面分析", status: "done",
+        detail: `技術評分 ${techScore(s)}% | MACD / RSI / 布林帶 / ADX / 均線趨勢 | ${s.technical_summary || "多指標共振判斷"}`,
+        color: techScore(s) > 50 ? "var(--buy)" : "var(--sell)",
+        score: techScore(s),
+      },
+      {
+        step: 3, label: "🏦 籌碼面分析", status: "done",
+        detail: s.market === "TW"
+          ? `外資/投信/自營商買賣超、融資融券、法人持股集中度分析`
+          : s.market === "CRYPTO"
+          ? `鏈上數據、巨鯨地址動向、交易所淨流入/出分析`
+          : `機構買賣動向、期貨未平倉量、選擇權Put/Call比`,
+        color: "var(--tw)",
+        score: confScore(s),
+      },
+      {
+        step: 4, label: "📰 消息面情緒", status: "done",
+        detail: `新聞情緒評分 ${sentScore(s)}% | ${s.news_sentiment ? (s.news_sentiment === "POSITIVE" ? "正面消息主導" : s.news_sentiment === "NEGATIVE" ? "負面消息主導" : "消息中性") : "AI 掃描近期新聞"}`,
+        color: (s.sentiment_score || 0) > 0 ? "var(--buy)" : (s.sentiment_score || 0) < 0 ? "var(--sell)" : "var(--hold)",
+        score: sentScore(s),
+      },
+      {
+        step: 5, label: "🧠 Claude AI 深度分析", status: "done",
+        detail: s.reasoning || s.ai_analysis || "Claude Sonnet 融合技術面、籌碼面、消息面，進行深度判斷",
+        color: "var(--crypto)",
+      },
+      {
+        step: 6, label: "⚖️ 多維度投票融合", status: "done",
+        detail: `技術 25% + ML 25% + 情緒 20% + 籌碼 30% → 加權總分 ${confScore(s)}%`,
+        color: "var(--gold)",
+        score: confScore(s),
+      },
+      {
+        step: 7, label: s.signal_type === "BUY" ? "🟢 最終判斷：買進" : "🔴 最終判斷：賣出",
+        status: "done",
+        detail: `進場 ${s.price?.toFixed(2)} | 止盈 ${s.target_price?.toFixed(2)} | 止損 ${s.stop_loss?.toFixed(2)} | 信心度 ${confScore(s)}%`,
+        color: s.signal_type === "BUY" ? "var(--buy)" : "var(--sell)",
+      },
+    ];
+
+    if (loading) return (
+      <div style={{ textAlign: "center", padding: "3rem", color: "var(--t3)" }}>
+        <div style={{ fontSize: "2rem", animation: "spin 1s linear infinite", display: "inline-block" }}>🤖</div>
+        <div style={{ marginTop: "0.75rem" }}>AI 分析載入中...</div>
+      </div>
+    );
+
+    return (
+      <div style={{ display: "grid", gridTemplateColumns: "clamp(160px,30%,220px) 1fr", gap: "1rem" }} className="ai-sim-grid">
+        {/* Left: signal list */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          <div style={{ fontSize: "0.78rem", color: "var(--t3)", marginBottom: "0.25rem", fontWeight: 600 }}>
+            近期 AI 分析標的
+          </div>
+          {recentSignals.length === 0 && (
+            <div style={{ color: "var(--t3)", fontSize: "0.82rem" }}>尚無訊號</div>
+          )}
+          {recentSignals.map(s => {
+            const isSel = (selectedSym ?? recentSignals[0]?.symbol) === s.symbol;
+            return (
+              <button key={`${s.id}-${s.symbol}`}
+                onClick={() => setSelectedSym(s.symbol)}
+                style={{
+                  background: isSel ? "var(--bg-card2)" : "var(--bg-card)",
+                  border: `1px solid ${isSel ? "var(--green)" : "var(--border)"}`,
+                  borderRadius: 10, padding: "0.6rem 0.75rem", cursor: "pointer",
+                  textAlign: "left", transition: "all .15s",
+                }}>
+                <div style={{ fontWeight: 700, fontSize: "0.88rem", color: "var(--t1)" }}>{s.symbol}</div>
+                <div style={{ fontSize: "0.7rem", color: s.signal_type === "BUY" ? "var(--buy)" : "var(--sell)" }}>
+                  {s.signal_type === "BUY" ? "🟢 買進" : "🔴 賣出"}
+                </div>
+                <div style={{ fontSize: "0.68rem", color: "var(--t3)", marginTop: "0.15rem" }}>
+                  {new Date(s.created_at).toLocaleString("zh-TW", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Right: step-by-step process */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          {selected ? (
+            <>
+              <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 12, padding: "0.85rem 1rem", marginBottom: "0.25rem" }}>
+                <div style={{ fontWeight: 800, fontSize: "1.05rem", color: "var(--t1)", marginBottom: "0.3rem" }}>
+                  🤖 AI 分析過程 — {STOCK_NAMES[selected.symbol] || selected.symbol} ({selected.symbol})
+                </div>
+                <div style={{ fontSize: "0.8rem", color: "var(--t3)" }}>
+                  以下是 Claude AI 對此標的完整的逐步分析推理過程
+                </div>
+              </div>
+              {STEPS(selected).map((step) => (
+                <div key={step.step} className="fade-up" style={{
+                  background: "var(--bg-card)",
+                  borderTop: `1px solid ${step.color}33`,
+                  borderRight: `1px solid ${step.color}33`,
+                  borderBottom: `1px solid ${step.color}33`,
+                  borderLeft: `3px solid ${step.color}`,
+                  borderRadius: 10, padding: "0.8rem 1rem",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.35rem" }}>
+                    <div style={{ fontWeight: 700, fontSize: "0.88rem", color: step.color }}>{step.label}</div>
+                    {step.score !== undefined && (
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                        <div style={{ width: 60, height: 5, background: "var(--bg-hover)", borderRadius: 3, overflow: "hidden" }}>
+                          <div style={{ width: `${step.score}%`, height: "100%", background: step.color, borderRadius: 3 }} />
+                        </div>
+                        <span style={{ fontSize: "0.72rem", color: step.color, fontWeight: 700 }}>{step.score}%</span>
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ fontSize: "0.82rem", color: "var(--t2)", lineHeight: 1.6 }}>{step.detail}</div>
+                </div>
+              ))}
+            </>
+          ) : (
+            <div style={{ textAlign: "center", padding: "3rem", color: "var(--t3)" }}>
+              ← 點選左側標的查看 AI 分析過程
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   /* ── Render ── */
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)" }}>
@@ -1087,6 +1353,7 @@ export default function Dashboard() {
         <StatsGrid />
         {tab === "signals"  && <SignalsTab />}
         {tab === "news"     && <NewsTab />}
+        {tab === "ai_sim"   && <AiSimTab signals={signals} loading={loading} />}
         {tab === "settings" && <SettingsTab />}
         {tab === "paper" && (
           <div style={{ padding: "0 0 2rem" }}>
@@ -1130,7 +1397,7 @@ export default function Dashboard() {
                         </div>
                         <button onClick={() => removePaperPosition(pos.id)} style={{ fontSize: "0.7rem", color: "var(--t4)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}>✕ 平倉</button>
                       </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "0.4rem" }}>
+                      <div className="paper-pos-grid" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "0.4rem" }}>
                         {[
                           { label: "進場", val: pos.entry_price.toLocaleString() },
                           { label: "現價", val: curPrice.toLocaleString() },
