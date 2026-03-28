@@ -2,6 +2,9 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
+
+const LightweightChart = dynamic(() => import("@/components/LightweightChart"), { ssr: false });
 
 /* ── Types ── */
 type Signal = {
@@ -24,6 +27,13 @@ type NewsItem = {
   id: string; title: string; url: string; source: string;
   description?: string; published_at: string;
   sentiment: string; sentiment_score?: number;
+  industry?: string;
+};
+type CryptoCoinsType = {
+  id: string; symbol: string; name: string;
+  price: number; change_1h: number; change_24h: number; change_7d: number;
+  market_cap: number; volume_24h: number; image: string;
+  ath: number; ath_change_pct: number;
 };
 
 /* ── Constants ── */
@@ -40,6 +50,7 @@ const SIG_COLOR: Record<string, string> = {
 const SENT_LABEL: Record<string, string> = {
   POSITIVE: "📈 正面", NEGATIVE: "📉 負面", NEUTRAL: "➡️ 中性",
 };
+const INDUSTRY_TABS = ["全部", "半導體", "科技", "金融", "能源", "加密貨幣", "電動車", "總經", "台股"];
 
 // Stock name lookup
 const STOCK_NAMES: Record<string, string> = {
@@ -78,37 +89,13 @@ const TW_INDUSTRIES = [
   { key: "ship",  label: "🚢 航運",   syms: ["2603","2615","2609","2610","2618","5347"] },
   { key: "etf",   label: "📊 ETF",    syms: ["0050","0056","00878","00929","00919","006208"] },
 ];
+const TW_SECTOR_FILTER = ["全部", "半導體", "AI伺服器", "金融", "航運", "電子", "傳產"];
+// Map sector label to TW_INDUSTRIES key
+const TW_SECTOR_KEY: Record<string, string> = {
+  "半導體": "semi", "AI伺服器": "semi", "金融": "fin",
+  "航運": "ship", "電子": "elec", "傳產": "trad",
+};
 
-/* ── TradingView Mini Chart (inline) ── */
-function InlineTVChart({ tvSymbol }: { tvSymbol: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!ref.current) return;
-    ref.current.innerHTML = "";
-    const script = document.createElement("script");
-    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js";
-    script.type = "text/javascript";
-    script.async = true;
-    script.innerHTML = JSON.stringify({
-      symbol: tvSymbol,
-      width: "100%",
-      height: 220,
-      locale: "zh_TW",
-      dateRange: "3M",
-      colorTheme: "dark",
-      trendLineColor: "rgba(34,197,94,1)",
-      underLineColor: "rgba(34,197,94,0.1)",
-      underLineBottomColor: "rgba(34,197,94,0)",
-      isTransparent: true,
-      autosize: true,
-      largeChartUrl: `https://trading-bot-web.zeabur.app/stock/${encodeURIComponent(tvSymbol)}`,
-    });
-    ref.current.appendChild(script);
-  }, [tvSymbol]);
-
-  return <div ref={ref} style={{ width: "100%", height: 220 }} className="tradingview-widget-container" />;
-}
 
 /* ── Sub-components ── */
 function StatCard({ label, value, sub, color }: { label: string; value: string | number; sub?: string; color?: string }) {
@@ -351,11 +338,17 @@ export default function Dashboard() {
   const [newsMarket, setNewsMarket] = useState("ALL");
   const [industry, setIndustry] = useState("");
   const [newsKeyword, setNewsKeyword] = useState("");
+  const [newsIndustry, setNewsIndustry] = useState("全部");
   const [loading, setLoading]   = useState(true);
   const [user, setUser]         = useState<{ name: string; pic: string } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [prices, setPrices]     = useState<PriceMap>({});
+  const [cryptoData, setCryptoData] = useState<{
+    coins: CryptoCoinsType[];
+    fear_greed: { value: number; label_zh: string };
+    global: { btc_dominance: number; market_cap_change_24h: number };
+  } | null>(null);
   const newsTimerRef = useRef<NodeJS.Timeout | null>(null);
   const priceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -389,14 +382,21 @@ export default function Dashboard() {
   }, [market, fetchPrices]);
 
   /* ── News fetch ── */
-  const fetchNews = useCallback(async (mkt = newsMarket, q = newsKeyword) => {
+  const fetchNews = useCallback(async (mkt = newsMarket, q = newsKeyword, ind = newsIndustry) => {
     setNewsLoading(true);
     const params = new URLSearchParams({ market: mkt });
     if (q) params.set("q", q);
+    if (ind && ind !== "全部") params.set("industry", ind);
     const res = await fetch(`/api/news?${params}`).then(r => r.json()).catch(() => ({ news: [] }));
     setNews(res.news || []);
     setNewsLoading(false);
-  }, [newsMarket, newsKeyword]);
+  }, [newsMarket, newsKeyword, newsIndustry]);
+
+  /* ── Crypto data fetch ── */
+  const fetchCryptoData = useCallback(async () => {
+    const res = await fetch("/api/crypto").then(r => r.json()).catch(() => null);
+    if (res) setCryptoData(res);
+  }, []);
 
   useEffect(() => {
     const getCookie = (name: string) =>
@@ -408,8 +408,12 @@ export default function Dashboard() {
   }, [fetchData]);
 
   useEffect(() => {
-    if (tab === "news") fetchNews(newsMarket, newsKeyword);
+    if (tab === "news") fetchNews(newsMarket, newsKeyword, newsIndustry);
   }, [tab, newsMarket]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (market === "CRYPTO") fetchCryptoData();
+  }, [market, fetchCryptoData]);
 
   // Auto-refresh prices every 30 seconds during market hours
   useEffect(() => {
@@ -544,12 +548,12 @@ export default function Dashboard() {
           {MARKET_INDICES.map(idx => {
             const p = indexPrices[idx.symbol];
             const isUp = p && p.changePercent >= 0;
-            const isActive = activeChart === idx.tvSymbol;
+            const isActive = activeChart === idx.symbol;
 
             return (
               <div key={idx.symbol}>
                 <div
-                  onClick={() => setActiveChart(isActive ? null : idx.tvSymbol)}
+                  onClick={() => setActiveChart(isActive ? null : idx.symbol)}
                   style={{
                     background: "var(--bg-card)",
                     border: `1px solid ${isActive ? idx.color : "var(--border)"}`,
@@ -602,7 +606,7 @@ export default function Dashboard() {
                     borderRadius: 12, overflow: "hidden",
                     animation: "fadeUp .2s ease",
                   }}>
-                    <InlineTVChart tvSymbol={idx.tvSymbol} />
+                    <LightweightChart symbol={idx.symbol} market={idx.market} height={120} mini={true} />
                   </div>
                 )}
               </div>
@@ -652,6 +656,28 @@ export default function Dashboard() {
           ))}
         </div>
 
+        {/* TW Sector quick-filter */}
+        {market === "TW" && (
+          <div style={{ display: "flex", gap: "0.4rem", overflowX: "auto", WebkitOverflowScrolling: "touch", paddingBottom: "0.4rem", marginBottom: "0.4rem" }}>
+            {TW_SECTOR_FILTER.map(sector => {
+              const mappedKey = TW_SECTOR_KEY[sector] || "";
+              const isActive = sector === "全部" ? !industry : industry === mappedKey;
+              return (
+                <button key={sector}
+                  onClick={() => setIndustry(sector === "全部" ? "" : (industry === mappedKey ? "" : mappedKey))}
+                  style={{
+                    background: isActive ? "rgba(56,189,248,.18)" : "var(--bg-card)",
+                    color: isActive ? "var(--tw)" : "var(--t3)",
+                    border: `1px solid ${isActive ? "var(--tw)" : "var(--border)"}`,
+                    borderRadius: 20, padding: "0.28rem 0.75rem", cursor: "pointer",
+                    fontSize: "0.75rem", fontWeight: isActive ? 700 : 400,
+                    whiteSpace: "nowrap", minHeight: 30, transition: "all .15s",
+                  }}>{sector}</button>
+              );
+            })}
+          </div>
+        )}
+
         {/* TW Industry filter */}
         {market === "TW" && (
           <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", paddingBottom: "0.5rem" }}>
@@ -676,6 +702,86 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* Crypto market panel */}
+      {market === "CRYPTO" && cryptoData && (
+        <div style={{ marginBottom: "1.25rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          {/* Fear & Greed + BTC Dominance row */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+            {/* Fear & Greed */}
+            <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14, padding: "1rem" }}>
+              <div style={{ color: "var(--t3)", fontSize: "0.72rem", marginBottom: "0.3rem" }}>恐懼貪婪指數</div>
+              <div style={{
+                fontSize: "2rem", fontWeight: 800,
+                color: cryptoData.fear_greed.value <= 25 ? "#f43f5e"
+                  : cryptoData.fear_greed.value <= 40 ? "#fb923c"
+                  : cryptoData.fear_greed.value <= 60 ? "var(--t2)"
+                  : cryptoData.fear_greed.value <= 75 ? "#4ade80"
+                  : "#22c55e",
+              }}>{cryptoData.fear_greed.value}</div>
+              <div style={{ color: "var(--t3)", fontSize: "0.78rem", marginTop: "0.2rem" }}>{cryptoData.fear_greed.label_zh}</div>
+            </div>
+            {/* BTC Dominance */}
+            <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14, padding: "1rem" }}>
+              <div style={{ color: "var(--t3)", fontSize: "0.72rem", marginBottom: "0.3rem" }}>BTC 市佔率</div>
+              <div style={{ fontSize: "2rem", fontWeight: 800, color: "var(--crypto)" }}>
+                {cryptoData.global.btc_dominance.toFixed(1)}%
+              </div>
+              <div style={{ marginTop: "0.4rem", background: "var(--bg)", borderRadius: 4, height: 6, overflow: "hidden" }}>
+                <div style={{ width: `${Math.min(100, cryptoData.global.btc_dominance)}%`, height: "100%", background: "var(--crypto)", borderRadius: 4 }} />
+              </div>
+              <div style={{ color: cryptoData.global.market_cap_change_24h >= 0 ? "var(--buy)" : "var(--sell)", fontSize: "0.75rem", marginTop: "0.3rem" }}>
+                總市值 {cryptoData.global.market_cap_change_24h >= 0 ? "▲" : "▼"}{Math.abs(cryptoData.global.market_cap_change_24h).toFixed(2)}%
+              </div>
+            </div>
+          </div>
+
+          {/* Top 10 coins table */}
+          <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
+            <div style={{ padding: "0.75rem 1rem", borderBottom: "1px solid var(--border)", fontSize: "0.8rem", fontWeight: 700, color: "var(--t2)" }}>
+              🪙 前 10 大加密貨幣
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+                <thead>
+                  <tr style={{ color: "var(--t3)" }}>
+                    <th style={{ padding: "0.5rem 1rem", textAlign: "left", fontWeight: 500 }}>幣種</th>
+                    <th style={{ padding: "0.5rem 0.5rem", textAlign: "right", fontWeight: 500 }}>價格 (USD)</th>
+                    <th style={{ padding: "0.5rem 0.5rem", textAlign: "right", fontWeight: 500 }}>24h%</th>
+                    <th style={{ padding: "0.5rem 1rem", textAlign: "right", fontWeight: 500 }}>市值</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cryptoData.coins.slice(0, 10).map((coin, idx) => (
+                    <tr key={coin.id} style={{ borderTop: "1px solid var(--border)" }}>
+                      <td style={{ padding: "0.5rem 1rem" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                          {coin.image && <img src={coin.image} alt={coin.symbol} style={{ width: 20, height: 20, borderRadius: "50%" }} />}
+                          <div>
+                            <div style={{ fontWeight: 700, color: "var(--t1)" }}>{coin.symbol}</div>
+                            <div style={{ fontSize: "0.68rem", color: "var(--t3)" }}>#{idx + 1}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ padding: "0.5rem 0.5rem", textAlign: "right", color: "var(--t1)", fontWeight: 600 }}>
+                        ${coin.price >= 1000
+                          ? coin.price.toLocaleString("en-US", { maximumFractionDigits: 0 })
+                          : coin.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}
+                      </td>
+                      <td style={{ padding: "0.5rem 0.5rem", textAlign: "right", fontWeight: 600, color: coin.change_24h >= 0 ? "var(--buy)" : "var(--sell)" }}>
+                        {coin.change_24h >= 0 ? "▲" : "▼"}{Math.abs(coin.change_24h).toFixed(2)}%
+                      </td>
+                      <td style={{ padding: "0.5rem 1rem", textAlign: "right", color: "var(--t3)" }}>
+                        ${(coin.market_cap / 1e9).toFixed(1)}B
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main content */}
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 300px", gap: "1.25rem", alignItems: "start" }}>
@@ -736,6 +842,23 @@ export default function Dashboard() {
               fontWeight: newsMarket === m ? 700 : 400, fontSize: "0.82rem", minHeight: 40,
             }}>
             {m === "ALL" ? "🌍 全部" : MARKET_LABEL[m] || m}
+          </button>
+        ))}
+      </div>
+
+      {/* Industry tabs */}
+      <div style={{ display: "flex", gap: "0.4rem", overflowX: "auto", WebkitOverflowScrolling: "touch", paddingBottom: "0.5rem", marginBottom: "0.75rem" }}>
+        {INDUSTRY_TABS.map(tab => (
+          <button key={tab} onClick={() => { setNewsIndustry(tab); fetchNews(newsMarket, newsKeyword, tab); }}
+            style={{
+              background: newsIndustry === tab ? "rgba(34,197,94,.18)" : "var(--bg-card)",
+              color: newsIndustry === tab ? "var(--green-light)" : "var(--t3)",
+              border: `1px solid ${newsIndustry === tab ? "var(--green)" : "var(--border)"}`,
+              borderRadius: 20, padding: "0.3rem 0.85rem", cursor: "pointer",
+              fontWeight: newsIndustry === tab ? 700 : 400, fontSize: "0.78rem",
+              whiteSpace: "nowrap", minHeight: 32, transition: "all .15s",
+            }}>
+            {tab}
           </button>
         ))}
       </div>

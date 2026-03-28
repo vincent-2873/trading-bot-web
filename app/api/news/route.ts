@@ -1,6 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase";
 
+const INDUSTRY_KEYWORDS: Record<string, string[]> = {
+  "半導體": ["台積電","聯發科","TSMC","tsmc","半導體","晶圓","IC","NVIDIA","nvidia","AMD","amd","Intel","intel","三星","高通","博通","應材","製程"],
+  "科技": ["蘋果","Apple","Google","Microsoft","Meta","AI","人工智慧","科技","軟體","雲端","AWS","Azure","OpenAI"],
+  "金融": ["央行","Fed","fed","升息","降息","銀行","金融","CPI","通膨","債券","美元","利率","聯準會","貨幣","財政"],
+  "能源": ["石油","原油","黃金","天然氣","能源","油","黃金","原物料","煤炭","核能","綠能","太陽能","風電"],
+  "加密貨幣": ["比特幣","以太幣","Bitcoin","bitcoin","Ethereum","ethereum","加密","BTC","ETH","SOL","幣","crypto","DeFi","NFT","Web3"],
+  "電動車": ["特斯拉","Tesla","tesla","電動車","EV","新能源","比亞迪","蔚來","小鵬","造車"],
+  "總經": ["GDP","PMI","就業","失業","財報","景氣","衰退","通脹","成長率","製造業","服務業","出口","進口"],
+  "台股": ["台股","加權指數","台灣","鴻海","廣達","緯創","聯電","日月光","長榮","陽明","元大","富邦","國泰","玉山"],
+};
+
+function classifyIndustry(title: string, summary: string = ""): string {
+  const text = (title + " " + summary).toLowerCase();
+  let best = "其他", bestScore = 0;
+  for (const [industry, keywords] of Object.entries(INDUSTRY_KEYWORDS)) {
+    const score = keywords.filter(kw => text.includes(kw.toLowerCase())).length;
+    if (score > bestScore) { best = industry; bestScore = score; }
+  }
+  return best;
+}
+
 const RSS: Record<string, string> = {
   TW:      "https://news.google.com/rss/search?q=台股+投資+選股&hl=zh-TW&gl=TW&ceid=TW:zh-Hant",
   US:      "https://news.google.com/rss/search?q=stock+market+nasdaq+S%26P500&hl=en-US&gl=US&ceid=US:en",
@@ -41,6 +62,7 @@ function parseRSS(xml: string) {
       published_at: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
       sentiment,
       sentiment_score,
+      industry: classifyIndustry(title, desc),
     };
   }).filter(n => n.title);
 }
@@ -48,12 +70,13 @@ function parseRSS(xml: string) {
 export async function GET(req: NextRequest) {
   const market = req.nextUrl.searchParams.get("market") || "ALL";
   const keyword = req.nextUrl.searchParams.get("q") || "";
+  const industryFilter = req.nextUrl.searchParams.get("industry") || "";
 
   try {
     // 1. Check Supabase for recent news (last 3 hours)
     const db = supabaseAdmin();
     const threeHoursAgo = new Date(Date.now() - 3 * 3600000).toISOString();
-    let dbQuery = db.from("news")
+    const dbQuery = db.from("news")
       .select("id,title,url,source,description:summary,published_at,sentiment,sentiment_score")
       .gte("published_at", threeHoursAgo)
       .order("published_at", { ascending: false })
@@ -61,10 +84,19 @@ export async function GET(req: NextRequest) {
 
     const { data: dbNews } = await dbQuery;
     if (dbNews && dbNews.length >= 5) {
-      const filtered = keyword
+      let filtered = keyword
         ? dbNews.filter(n => n.title?.toLowerCase().includes(keyword.toLowerCase()))
         : dbNews;
-      return NextResponse.json({ news: filtered, source: "db" });
+      // Add industry classification
+      const withIndustry = filtered.map(n => ({
+        ...n,
+        industry: classifyIndustry(n.title || "", n.description || ""),
+      }));
+      // Apply industry filter
+      const result = (industryFilter && industryFilter !== "全部")
+        ? withIndustry.filter(n => n.industry === industryFilter)
+        : withIndustry;
+      return NextResponse.json({ news: result, source: "db" });
     }
 
     // 2. Fallback: fetch from Google News RSS
@@ -83,7 +115,12 @@ export async function GET(req: NextRequest) {
 
     if (!res.ok) throw new Error(`RSS fetch failed: ${res.status}`);
     const xml = await res.text();
-    const news = parseRSS(xml);
+    const allNews = parseRSS(xml);
+
+    // Apply industry filter
+    const news = (industryFilter && industryFilter !== "全部")
+      ? allNews.filter(n => n.industry === industryFilter)
+      : allNews;
 
     return NextResponse.json({ news, source: "rss" });
   } catch (e) {

@@ -1,30 +1,9 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import LightweightChart from "@/components/LightweightChart";
 
-/* ── TradingView Symbol mapping ── */
-function getTVSymbol(symbol: string, market: string): string {
-  if (market === "TW") return `TWSE:${symbol}`;
-  if (market === "FUTURES") {
-    const map: Record<string, string> = {
-      "ES=F": "CME_MINI:ES1!", "NQ=F": "CME_MINI:NQ1!",
-      "YM=F": "CBOT_MINI:YM1!", "RTY=F": "CME_MINI:RTY1!",
-      "GC=F": "COMEX:GC1!", "CL=F": "NYMEX:CL1!",
-    };
-    return map[symbol] || `CME:${symbol.replace("=F", "1!")}`;
-  }
-  if (market === "CRYPTO") {
-    const map: Record<string, string> = {
-      "BTC-USD": "BINANCE:BTCUSDT", "ETH-USD": "BINANCE:ETHUSDT",
-    };
-    return map[symbol] || `BINANCE:${symbol.replace("-USD", "USDT")}`;
-  }
-  // US stocks
-  const nasdaqStocks = ["NVDA","AAPL","MSFT","AMZN","GOOGL","META","AMD","INTC","NFLX","UBER","TSLA"];
-  if (nasdaqStocks.includes(symbol)) return `NASDAQ:${symbol}`;
-  return `NYSE:${symbol}`;
-}
 
 type Signal = {
   id: number; symbol: string; market: string; signal_type: string;
@@ -37,24 +16,6 @@ type PriceInfo = {
   price: number; change: number; changePercent: number; name: string;
 };
 
-/* ── TradingView Widget（iframe 穩定版，不中斷）── */
-function TradingViewWidget({ tvSymbol }: { tvSymbol: string }) {
-  const src = `https://s.tradingview.com/widgetembed/?frameElementId=tv_chart&symbol=${encodeURIComponent(tvSymbol)}&interval=D&hidesidetoolbar=0&symboledit=1&saveimage=1&toolbarbg=0c1c10&studies=RSI%40tv-basicstudies%2CMACD%40tv-basicstudies&theme=dark&style=1&timezone=Asia%2FTaipei&studies_overrides=%7B%7D&overrides=%7B%7D&enabled_features=%5B%5D&disabled_features=%5B%5D&locale=zh_TW&utm_source=guagua.club&utm_medium=widget`;
-
-  return (
-    <iframe
-      src={src}
-      style={{
-        width: "100%", height: 480,
-        border: "none", display: "block",
-        background: "var(--bg-card)",
-      }}
-      allowFullScreen
-      loading="lazy"
-      title={`TradingView Chart - ${tvSymbol}`}
-    />
-  );
-}
 
 export default function StockDetailPage() {
   const params = useParams();
@@ -101,7 +62,6 @@ export default function StockDetailPage() {
   }, [symbol]);
 
   const latestSignal = signals[0];
-  const tvSymbol = getTVSymbol(symbol, market);
 
   const formatPrice = (p: number) => {
     if (p <= 0) return "-";
@@ -196,15 +156,13 @@ export default function StockDetailPage() {
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 340px", gap: "1.25rem", alignItems: "start" }}>
           {/* Left: Chart + Signals */}
           <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
-            {/* TradingView Chart */}
+            {/* LightweightChart */}
             <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 16, overflow: "hidden" }}>
               <div style={{ padding: "0.9rem 1.1rem", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: "0.5rem" }}>
                 <span style={{ fontWeight: 700, color: "var(--t1)", fontSize: "0.9rem" }}>📈 技術線圖</span>
-                <span style={{ fontSize: "0.75rem", color: "var(--t3)" }}>TradingView · {tvSymbol}</span>
+                <span style={{ fontSize: "0.75rem", color: "var(--t3)" }}>Yahoo Finance · {symbol}</span>
               </div>
-              <div style={{ height: 480 }}>
-                <TradingViewWidget tvSymbol={tvSymbol} />
-              </div>
+              <LightweightChart symbol={symbol} market={market} height={480} />
             </div>
 
             {/* Signal History */}
