@@ -15,6 +15,7 @@ type Signal = {
   // legacy aliases (frontend compat)
   signal_strength?: number; entry_price?: number; take_profit?: number;
   ai_analysis?: string; technical_summary?: string; news_sentiment?: string;
+  invest_style?: string;
 };
 type Stats = {
   signals_7d: number; buy_signals: number; sell_signals: number;
@@ -66,34 +67,39 @@ const STOCK_NAMES: Record<string, string> = {
   "2883": "開發金", "1229": "聯華", "1326": "台化",
   "0050": "元大台灣50", "0056": "元大高股息", "00878": "國泰永續高股息",
   "00929": "復華台灣科技優息", "00919": "群益台灣精選高息", "006208": "富邦台50",
+  "2892": "第一金", "3045": "台灣大哥大",
+  "2474": "可成", "2376": "技嘉", "2912": "統一超",
   // 美股
   "NVDA": "NVIDIA", "TSLA": "Tesla", "AAPL": "Apple",
   "MSFT": "Microsoft", "AMZN": "Amazon", "GOOGL": "Alphabet",
   "META": "Meta", "AMD": "AMD", "INTC": "Intel",
   "NFLX": "Netflix", "UBER": "Uber",
+  "TSM": "Taiwan Semi", "QCOM": "Qualcomm", "AVGO": "Broadcom",
+  "ORCL": "Oracle", "CRM": "Salesforce", "COIN": "Coinbase",
+  "PLTR": "Palantir", "SMCI": "SuperMicro",
   // 期貨
   "ES=F": "S&P500期貨", "NQ=F": "那斯達克期貨",
   "YM=F": "道瓊期貨", "RTY=F": "羅素2000",
   "GC=F": "黃金期貨", "CL=F": "原油期貨",
   // 加密
-  "BTC-USD": "比特幣", "ETH-USD": "以太幣",
+  "BTC-USD": "比特幣", "ETH-USD": "以太幣", "SOL-USD": "Solana", "BNB-USD": "BNB",
 };
 
 // Taiwan stock industries
 const TW_INDUSTRIES = [
-  { key: "semi",  label: "💻 半導體", syms: ["2330","2454","2379","3711","6770","2303","2337","3034","2344"] },
-  { key: "elec",  label: "📱 電子",   syms: ["2317","2382","2308","2301","3231","2357","4938"] },
-  { key: "fin",   label: "🏦 金融",   syms: ["2882","2881","2886","2891","2884","2880","2883"] },
-  { key: "bio",   label: "💊 生技",   syms: ["4166","2727","1760","6446","4743","4968"] },
-  { key: "trad",  label: "🏭 傳產",   syms: ["1301","1303","2002","2006","1326","1229"] },
-  { key: "ship",  label: "🚢 航運",   syms: ["2603","2615","2609","2610","2618","5347"] },
-  { key: "etf",   label: "📊 ETF",    syms: ["0050","0056","00878","00929","00919","006208"] },
+  { key: "semi",   label: "💻 半導體",    syms: ["2330","2454","2379","2303","3711","6770","2344","3034","2337","5347","2408"] },
+  { key: "ai",     label: "🤖 AI伺服器",  syms: ["2382","2317","3231","4938","2308","2357","2301","2327"] },
+  { key: "fin",    label: "🏦 金融",      syms: ["2882","2881","2886","2891","2884","2880","2892"] },
+  { key: "ship",   label: "🚢 航運",      syms: ["2603","2615","2609","2610","2618"] },
+  { key: "bio",    label: "💊 生技",      syms: ["4166","4743","4968","6446"] },
+  { key: "trad",   label: "🏭 傳產",      syms: ["1301","1303","2002","1326","2912"] },
+  { key: "telecom",label: "📡 電信",      syms: ["2412","3045"] },
 ];
-const TW_SECTOR_FILTER = ["全部", "半導體", "AI伺服器", "金融", "航運", "電子", "傳產"];
+const TW_SECTOR_FILTER = ["全部", "半導體", "AI伺服器", "金融", "航運", "生技", "傳產", "電信"];
 // Map sector label to TW_INDUSTRIES key
 const TW_SECTOR_KEY: Record<string, string> = {
-  "半導體": "semi", "AI伺服器": "semi", "金融": "fin",
-  "航運": "ship", "電子": "elec", "傳產": "trad",
+  "半導體": "semi", "AI伺服器": "ai", "金融": "fin",
+  "航運": "ship", "生技": "bio", "傳產": "trad", "電信": "telecom",
 };
 
 
@@ -108,9 +114,10 @@ function StatCard({ label, value, sub, color }: { label: string; value: string |
   );
 }
 
-function SignalCard({ signal, realtimePrice }: {
+function SignalCard({ signal, realtimePrice, onPaperTrade }: {
   signal: Signal;
   realtimePrice?: { price: number; change: number; changePercent: number; name: string };
+  onPaperTrade?: (signal: Signal, price: number) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const router = useRouter();
@@ -166,6 +173,22 @@ function SignalCard({ signal, realtimePrice }: {
             background: `${MARKET_COLOR[signal.market] || "var(--t3)"}18`,
             padding: "2px 8px", borderRadius: 6,
           }}>{MARKET_LABEL[signal.market] || signal.market}</span>
+          {/* Investor Style Tag */}
+          {(() => {
+            const TW_SHORT = ["2454","2337","6770","2344","3034","4166","4743","4968","6446"];
+            const TW_LONG = ["2882","2881","2880","2892","2886","2412","3045","1301","1303","3008"];
+            const style = signal.market === "CRYPTO" ? "短線"
+              : TW_SHORT.includes(signal.symbol) ? "短線"
+              : TW_LONG.includes(signal.symbol) ? "長線"
+              : "中線";
+            const styleColor = style === "短線" ? "#f97316" : style === "長線" ? "#60a5fa" : "#a3e635";
+            return (
+              <span style={{ fontSize: "0.65rem", color: styleColor, background: `${styleColor}18`,
+                padding: "1px 6px", borderRadius: 4, fontWeight: 600 }}>
+                {style}
+              </span>
+            );
+          })()}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
           {/* Real-time price */}
@@ -234,6 +257,14 @@ function SignalCard({ signal, realtimePrice }: {
           <span style={{ fontSize: "0.72rem", color: "var(--t3)" }}>
             {new Date(signal.created_at).toLocaleString("zh-TW", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
           </span>
+          {(signal.signal_type === "BUY" || signal.signal_type === "SELL") && onPaperTrade && (
+            <button onClick={(e) => { e.stopPropagation(); onPaperTrade(signal, entryPrice); }}
+              style={{ fontSize: "0.7rem", padding: "3px 8px", borderRadius: 6,
+                background: "#a3e63522", color: "#a3e635", border: "1px solid #a3e63540",
+                cursor: "pointer" }}>
+              🎮 模擬
+            </button>
+          )}
           <Link
             href={`/stock/${encodeURIComponent(signal.symbol)}`}
             onClick={e => e.stopPropagation()}
@@ -328,7 +359,7 @@ const MARKET_INDICES = [
 
 /* ── Main Dashboard ── */
 export default function Dashboard() {
-  const [tab, setTab]           = useState<"signals" | "news" | "settings">("signals");
+  const [tab, setTab]           = useState<"signals" | "news" | "settings" | "paper">("signals");
   const [signals, setSignals]   = useState<Signal[]>([]);
   const [stats, setStats]       = useState<Stats | null>(null);
   const [sub, setSub]           = useState<Sub>({ subscribed: false, markets: [] });
@@ -351,6 +382,40 @@ export default function Dashboard() {
   } | null>(null);
   const newsTimerRef = useRef<NodeJS.Timeout | null>(null);
   const priceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  /* ── Paper Trading ── */
+  type PaperPosition = {
+    id: string; symbol: string; market: string; name: string;
+    direction: "BUY" | "SELL"; entry_price: number; qty: number;
+    stop_loss: number; take_profit: number; entered_at: string;
+    current_price: number; pnl: number; pnl_pct: number;
+  };
+  const [paperPositions, setPaperPositions] = useState<PaperPosition[]>(() => {
+    if (typeof window === "undefined") return [];
+    try { return JSON.parse(localStorage.getItem("paper_positions") || "[]"); } catch { return []; }
+  });
+
+  const addPaperPosition = (signal: Signal, price: number) => {
+    const pos: PaperPosition = {
+      id: `${signal.symbol}-${Date.now()}`,
+      symbol: signal.symbol, market: signal.market,
+      name: STOCK_NAMES[signal.symbol] || signal.symbol,
+      direction: signal.signal_type as "BUY" | "SELL",
+      entry_price: price || signal.price, qty: 1,
+      stop_loss: signal.stop_loss, take_profit: signal.target_price,
+      entered_at: new Date().toISOString(),
+      current_price: price || signal.price, pnl: 0, pnl_pct: 0,
+    };
+    const updated = [...paperPositions, pos];
+    setPaperPositions(updated);
+    localStorage.setItem("paper_positions", JSON.stringify(updated));
+  };
+
+  const removePaperPosition = (id: string) => {
+    const updated = paperPositions.filter(p => p.id !== id);
+    setPaperPositions(updated);
+    localStorage.setItem("paper_positions", JSON.stringify(updated));
+  };
 
   /* ── Real-time price fetch ── */
   const fetchPrices = useCallback(async (sigs: Signal[]) => {
@@ -509,6 +574,7 @@ export default function Dashboard() {
       {[
         { key: "signals", label: "📊 訊號" },
         { key: "news",    label: "📰 新聞時事" },
+        { key: "paper",   label: "🎮 模擬倉" },
         { key: "settings",label: "⚙️ 設定" },
       ].map(t => (
         <button
@@ -809,7 +875,7 @@ export default function Dashboard() {
               <div style={{ color: "var(--t3)", fontSize: "0.78rem", marginBottom: "0.25rem" }}>
                 共 {filteredSignals.length} 筆訊號{industry ? ` · ${TW_INDUSTRIES.find(i => i.key === industry)?.label}` : ""}
               </div>
-              {filteredSignals.map(s => <SignalCard key={s.id} signal={s} realtimePrice={prices[s.symbol]} />)}
+              {filteredSignals.map(s => <SignalCard key={s.id} signal={s} realtimePrice={prices[s.symbol]} onPaperTrade={addPaperPosition} />)}
             </div>
           )}
         </div>
@@ -1022,6 +1088,68 @@ export default function Dashboard() {
         {tab === "signals"  && <SignalsTab />}
         {tab === "news"     && <NewsTab />}
         {tab === "settings" && <SettingsTab />}
+        {tab === "paper" && (
+          <div style={{ padding: "0 0 2rem" }}>
+            <div style={{ fontWeight: 700, color: "var(--t1)", fontSize: "0.95rem", marginBottom: "1rem" }}>
+              🎮 模擬倉 · {paperPositions.length} 筆持倉
+            </div>
+            {paperPositions.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "3rem", color: "var(--t3)" }}>
+                <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>🎮</div>
+                <div>點擊訊號卡片上的「模擬」按鈕加入模擬倉</div>
+                <div style={{ fontSize: "0.8rem", marginTop: "0.5rem", color: "var(--t4)" }}>資金不風險，練習 AI 訊號操作</div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                {/* Summary */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: "0.75rem", marginBottom: "0.5rem" }}>
+                  {[
+                    { label: "持倉數", value: paperPositions.length },
+                    { label: "模擬盈利", value: `${paperPositions.filter(p=>{ const cur = prices[p.symbol]?.price || p.entry_price; const pct = p.direction === "BUY" ? (cur - p.entry_price) / p.entry_price * 100 : (p.entry_price - cur) / p.entry_price * 100; return pct > 0; }).length} 筆` },
+                    { label: "模擬虧損", value: `${paperPositions.filter(p=>{ const cur = prices[p.symbol]?.price || p.entry_price; const pct = p.direction === "BUY" ? (cur - p.entry_price) / p.entry_price * 100 : (p.entry_price - cur) / p.entry_price * 100; return pct < 0; }).length} 筆` },
+                  ].map(s => (
+                    <div key={s.label} style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10, padding: "0.75rem", textAlign: "center" }}>
+                      <div style={{ color: "var(--t3)", fontSize: "0.7rem" }}>{s.label}</div>
+                      <div style={{ color: "var(--t1)", fontWeight: 700 }}>{s.value}</div>
+                    </div>
+                  ))}
+                </div>
+                {/* Positions */}
+                {paperPositions.map(pos => {
+                  const curPrice = prices[pos.symbol]?.price || pos.entry_price;
+                  const pnlPct = pos.direction === "BUY"
+                    ? (curPrice - pos.entry_price) / pos.entry_price * 100
+                    : (pos.entry_price - curPrice) / pos.entry_price * 100;
+                  return (
+                    <div key={pos.id} style={{ background: "var(--bg-card)", border: `1px solid ${pnlPct >= 0 ? "var(--buy)" : "var(--sell)"}44`, borderRadius: 12, padding: "0.85rem 1rem" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+                        <div>
+                          <span style={{ fontWeight: 700, color: "var(--t1)", marginRight: "0.5rem" }}>{pos.symbol}</span>
+                          <span style={{ fontSize: "0.8rem", color: "var(--t3)" }}>{pos.name}</span>
+                          <span style={{ marginLeft: "0.5rem", fontSize: "0.72rem", color: pos.direction === "BUY" ? "var(--buy)" : "var(--sell)", background: pos.direction === "BUY" ? "var(--buy)22" : "var(--sell)22", padding: "1px 6px", borderRadius: 4 }}>{pos.direction === "BUY" ? "📈 做多" : "📉 做空"}</span>
+                        </div>
+                        <button onClick={() => removePaperPosition(pos.id)} style={{ fontSize: "0.7rem", color: "var(--t4)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}>✕ 平倉</button>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "0.4rem" }}>
+                        {[
+                          { label: "進場", val: pos.entry_price.toLocaleString() },
+                          { label: "現價", val: curPrice.toLocaleString() },
+                          { label: "損益", val: `${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%`, color: pnlPct >= 0 ? "var(--buy)" : "var(--sell)" },
+                          { label: "進場時間", val: new Date(pos.entered_at).toLocaleString("zh-TW", { month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit" }) },
+                        ].map(f => (
+                          <div key={f.label} style={{ textAlign: "center", background: "var(--bg)", borderRadius: 6, padding: "0.3rem" }}>
+                            <div style={{ fontSize: "0.62rem", color: "var(--t3)" }}>{f.label}</div>
+                            <div style={{ fontSize: "0.78rem", fontWeight: 600, color: (f as {label:string;val:string;color?:string}).color || "var(--t1)" }}>{f.val}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
