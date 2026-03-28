@@ -10,7 +10,13 @@ export async function GET(req: NextRequest) {
 
   try {
     const db = supabaseAdmin();
-    let query = db.from("signals").select("*").order("created_at", { ascending: false }).limit(limit);
+    // Exclude ETFs and hidden signals
+    const ETF_SYMBOLS = ["0050","0056","00878","00929","00919","006208","00646","00692"];
+    let query = db.from("signals").select("*")
+      .not("signal_type", "eq", "ETF_SKIP")
+      .not("symbol", "in", `(${ETF_SYMBOLS.join(",")})`)
+      .order("created_at", { ascending: false })
+      .limit(limit);
     if (market && market !== "ALL") query = query.eq("market", market);
     if (symbol) query = query.eq("symbol", symbol);
 
