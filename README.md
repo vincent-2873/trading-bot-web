@@ -1,36 +1,38 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# trading-bot-web — 呱呱投資俱樂部 Web Dashboard
 
-## Getting Started
+Next.js 16 Web 介面，顯示 AI 交易機器人產生的訊號、持倉、績效。配合背景 Python 服務 [`trading-bot`](https://github.com/vincent-2873/trading-bot) 一起使用。
 
-First, run the development server:
+## 架構
+
+- **前端**：Next.js 16 + React 19 + Tailwind CSS 4
+- **圖表**：lightweight-charts (TradingView) + recharts
+- **資料**：Supabase（與 `trading-bot` Python 核心共用同一個 DB）
+- **AI**：Anthropic Claude SDK
+- **登入**：LINE Login
+- **推播**：LINE Messaging API Webhook
+
+## 本地開發
 
 ```bash
+npm install
+cp .env.example .env.local  # 填入實際值
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+開啟 [http://localhost:3000](http://localhost:3000)。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 環境變數
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+見 `.env.example`。正式環境變數設定在 Zeabur。
 
-## Learn More
+## 部署
 
-To learn more about Next.js, take a look at the following resources:
+- **Zeabur**：push 到 `main` 分支 → 自動 build + deploy 到 `trading-bot-web.zeabur.app`
+- **CI**：每次 push / PR 會跑 type check + build（見 `.github/workflows/ci.yml`）
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 相關專案
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Repo | 角色 |
+|---|---|
+| `trading-bot-web`（本專案） | Web Dashboard |
+| `trading-bot` | Python 排程 + 訊號引擎（在 Zeabur Docker 背景跑） |
