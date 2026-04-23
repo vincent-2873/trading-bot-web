@@ -15,7 +15,7 @@ const APP_URL     = process.env.NEXT_PUBLIC_APP_URL || "https://trading-bot-web.
 
 // 驗證 LINE 簽名
 function verifySignature(body: string, signature: string): boolean {
-  if (!LINE_SECRET) return true; // Dev mode skip
+  if (!LINE_SECRET) return false; // Reject if secret not configured
   const hash = crypto.createHmac("sha256", LINE_SECRET).update(body).digest("base64");
   return hash === signature;
 }
