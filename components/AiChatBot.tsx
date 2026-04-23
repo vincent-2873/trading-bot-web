@@ -16,13 +16,18 @@ const QUICK_ACTIONS = [
 ];
 
 /* ── Typewriter component ────────────────────────────────────────────────────── */
+function escapeHtml(s: string) {
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
 function TypewriterText({ text }: { text: string }) {
   const lines = text.split("\n");
   return (
     <div style={{ lineHeight: 1.7, fontSize: "clamp(0.82rem, 3.8vw, 0.93rem)" }}>
       {lines.map((line, i) => {
-        // Bold: **text**
-        const formatted = line.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+        // Escape first, then apply **bold** so AI content can't inject HTML
+        const escaped = escapeHtml(line);
+        const formatted = escaped.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
         // Heading lines (start with #)
         const isHeading = /^#{1,3} /.test(line);
         return (
