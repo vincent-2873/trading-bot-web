@@ -115,7 +115,7 @@ function detectStock(msg: string): { symbol: string; market: string; name: strin
 // ── Fetch OHLCV summary from Yahoo Finance ────────────────────────────────────
 async function fetchOHLCV(symbol: string, market: string, period: string) {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const res = await fetch(
       `${baseUrl}/api/ohlcv?symbol=${encodeURIComponent(symbol)}&market=${market}&period=${period}`,
       { cache: "no-store" }
@@ -175,7 +175,7 @@ async function fetchSignals(symbol: string) {
 // ── Fetch chip data ───────────────────────────────────────────────────────────
 async function fetchChip(symbol: string) {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
     const res = await fetch(`${baseUrl}/api/chip?symbol=${symbol}`, { cache: "no-store" });
     return await res.json();
   } catch { return null; }
