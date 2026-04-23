@@ -9,8 +9,6 @@ import { supabaseAdmin } from "@/lib/supabase";
 import fs from "fs";
 import path from "path";
 
-export const maxDuration = 60;
-
 // Read ANTHROPIC_API_KEY from .env.local if system env is empty
 // (Claude Code shell sets ANTHROPIC_API_KEY="" which overrides .env.local)
 function getAnthropicKey(): string {
